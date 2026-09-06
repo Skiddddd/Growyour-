@@ -1,0 +1,96 @@
+{
+  "users": [
+    {
+      "id": "admin-1",
+      "email": "admin@growyour.io",
+      "fullName": "Growyour$ Administrator",
+      "passwordHash": "64b24d069ab9d430841462c7900e0a77:29796ee8ba4c9699154f30d6083f5871a27e9c727959d9c0274542077b40e7da0ecb14889e866c0b343f7a207283801390f77ef0b149f0e2da06ff7f9f6d1db5",
+      "balance": 7000,
+      "role": "ADMIN",
+      "isActive": true,
+      "createdAt": "2026-09-06T20:47:33.744Z"
+    },
+    {
+      "id": "usr_4ebc48f1",
+      "email": "gsysyys@gami.com",
+      "fullName": "Si",
+      "passwordHash": "c8b649c31bcf7604616cc87dde5d54a2:d1a71bb2b587a140f29377527e632585d718ce3cd22bbdfadd178c03d38b0258f99e2abff5c265935030da4a0e369f3aab6eb67d9861fc51c3a5021ec4c55bfc",
+      "balance": 6000,
+      "role": "USER",
+      "isActive": true,
+      "createdAt": "2026-09-06T21:13:53.101Z"
+    }
+  ],
+  "transactions": [
+    {
+      "id": "tx_f03d119f",
+      "userId": "usr_4ebc48f1",
+      "userEmail": "gsysyys@gami.com",
+      "type": "DEPOSIT",
+      "amount": 1000,
+      "status": "PENDING",
+      "date": "2026-09-06T21:44:01.451Z",
+      "method": "USDT Network Transfer",
+      "planId": null
+    },
+    {
+      "id": "tx_2edf4ca4",
+      "userId": "usr_4ebc48f1",
+      "userEmail": "gsysyys@gami.com",
+      "type": "DEPOSIT",
+      "amount": 5000,
+      "status": "COMPLETED",
+      "date": "2026-09-06T21:14:26.892Z",
+      "method": "USDT Network Transfer",
+      "planId": null
+    },
+    {
+      "id": "tx_0123a07a",
+      "userId": "usr_4ebc48f1",
+      "userEmail": "gsysyys@gami.com",
+      "type": "DEPOSIT",
+      "amount": 1000,
+      "status": "COMPLETED",
+      "date": "2026-09-06T21:14:13.051Z",
+      "method": "USDT Network Transfer",
+      "planId": null
+    }
+  ],
+  "plans": [
+    {
+      "id": "plan-1",
+      "name": "BTC Core Income",
+      "minAmount": 200,
+      "maxAmount": 2000,
+      "dailyRoi": 1.5,
+      "durationDays": 30,
+      "risk": "Low Risk",
+      "strategy": "Market-neutral BTC basis and hedged carry arbitrage."
+    },
+    {
+      "id": "plan-2",
+      "name": "Blue Chip Momentum",
+      "minAmount": 1000,
+      "maxAmount": 25000,
+      "dailyRoi": 2.5,
+      "durationDays": 60,
+      "risk": "Moderate Risk",
+      "strategy": "Rotational algorithmic exposure across BTC, ETH, and top-tier assets."
+    },
+    {
+      "id": "plan-3",
+      "name": "Opportunistic Alpha",
+      "minAmount": 10000,
+      "maxAmount": 250000,
+      "dailyRoi": 4,
+      "durationDays": 90,
+      "risk": "High Growth",
+      "strategy": "High-frequency momentum and liquidity provisioning with stop-loss protection."
+    }
+  ],
+  "systemConfig": {
+    "btcAddress": "bc1qynty8rdg8448dektk7yesd9ph0w08tfy7dav3y",
+    "ethAddress": "0xf4059C384bAa6d60E426F91681F1e62A830E4Ec9",
+    "usdtAddress": "0xf4059C384bAa6d60E426F91681F1e62A830E4Ec9"
+  }
+}

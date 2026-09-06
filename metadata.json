@@ -1,0 +1,6 @@
+{
+  "name": "Growyour$",
+  "description": "Growyour$ - Online cryptocurrency and asset investment platform featuring automated wealth plans, multi-currency deposit pipelines, and administrator management controls.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
