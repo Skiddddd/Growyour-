@@ -27,10 +27,13 @@ export default function App() {
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isRegistering, setIsRegistering] = useState(false);
   const [isResettingPassword, setIsResettingPassword] = useState(false);
   const [resetPassword, setResetPassword] = useState('');
+  const [showResetPassword, setShowResetPassword] = useState(false);
   const [resetConfirmPassword, setResetConfirmPassword] = useState('');
+  const [showResetConfirmPassword, setShowResetConfirmPassword] = useState(false);
   const [resetSuccess, setResetSuccess] = useState('');
   const [resetError, setResetError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -46,6 +49,7 @@ export default function App() {
   const [depositAmount, setDepositAmount] = useState<number>(1000);
   const [depositMethod, setDepositMethod] = useState<'BTC' | 'ETH' | 'USDT'>('USDT');
   const [depositSuccess, setDepositSuccess] = useState(false);
+  const [depositSubmitting, setDepositSubmitting] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
 
   // Set when a transaction could not be written to the shared Supabase
@@ -97,38 +101,22 @@ export default function App() {
             mergedTxsMap.set(t.id, t);
           });
 
-          const mergedTxs = Array.from(mergedTxsMap.values()).sort(
+          const sortedMerged = Array.from(mergedTxsMap.values()).sort(
             (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
           );
 
-          // Auto-sync any unsynced local pending deposits to Supabase in the background
-          if (!isAdmin && currentUser.email) {
-            const unsyncedPending = localTxs.filter(
-              (lt) =>
-                lt.status === TransactionStatus.PENDING &&
-                !supaTxs.some(
-                  (st) =>
-                    st.id === lt.id ||
-                    (st.userEmail?.toLowerCase() === lt.userEmail?.toLowerCase() &&
-                      st.amount === lt.amount &&
-                      Math.abs(new Date(st.date).getTime() - new Date(lt.date).getTime()) < 120000)
-                )
-            );
-            if (unsyncedPending.length > 0) {
-              for (const ut of unsyncedPending) {
-                supabaseService
-                  .createTransaction({
-                    userId: currentUser.id,
-                    userEmail: currentUser.email,
-                    type: ut.type,
-                    amount: ut.amount,
-                    method: ut.method,
-                    planId: ut.planId
-                  })
-                  .catch(() => {});
-              }
+          // Deduplicate rapid identical submissions (within a 10-minute window)
+          const seenKeySet = new Set<string>();
+          const deduplicatedTxs: Transaction[] = [];
+
+          sortedMerged.forEach((tx) => {
+            const timeWindow = Math.floor(new Date(tx.date).getTime() / 600000);
+            const key = `${(tx.userEmail || '').toLowerCase()}_${tx.amount}_${tx.type}_${tx.method || ''}_${timeWindow}`;
+            if (!seenKeySet.has(key)) {
+              seenKeySet.add(key);
+              deduplicatedTxs.push(tx);
             }
-          }
+          });
 
           setState((prev) => ({
             ...prev,
@@ -137,7 +125,7 @@ export default function App() {
               role: isAdmin ? UserRole.ADMIN : UserRole.USER
             },
             users: isAdmin && supaUsers.length > 0 ? supaUsers : prev.users,
-            transactions: mergedTxs,
+            transactions: deduplicatedTxs,
             systemConfig: supaConfig || prev.systemConfig
           }));
           return;
@@ -390,67 +378,78 @@ export default function App() {
 
   const handleDepositSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!state.currentUser || depositAmount <= 0) return;
+    if (!state.currentUser || depositAmount <= 0 || depositSubmitting) return;
 
+    setDepositSubmitting(true);
     setSyncWarning(null);
 
-    if (supabaseService.isAvailable()) {
-      try {
-        await supabaseService.createTransaction({
-          userId: state.currentUser.id,
-          userEmail: state.currentUser.email,
-          type: TransactionType.DEPOSIT,
-          amount: depositAmount,
-          method: `${depositMethod} Network Transfer`
-        });
-      } catch (err) {
-        console.error('Supabase deposit insert failed, saving locally only:', err);
-        storageService.createTransaction(
-          state.currentUser.id,
-          TransactionType.DEPOSIT,
-          depositAmount,
-          `${depositMethod} Transfer`
-        );
-        setSyncWarning(
-          `This deposit was only saved on this device and was NOT sent to the server database, so it will not appear in the admin panel. Error: ${
-            err instanceof Error ? err.message : String(err)
-          }`
-        );
-      }
-    } else {
-      try {
-        await apiService.createTransaction({
-          type: TransactionType.DEPOSIT,
-          amount: depositAmount,
-          method: `${depositMethod} Network Transfer`
-        });
-      } catch (err) {
-        console.error('API deposit insert failed, saving locally only:', err);
-        storageService.createTransaction(
-          state.currentUser.id,
-          TransactionType.DEPOSIT,
-          depositAmount,
-          `${depositMethod} Transfer`
-        );
-        setSyncWarning(
-          `This deposit was only saved on this device and was NOT sent to the server database, so it will not appear in the admin panel. Error: ${
-            err instanceof Error ? err.message : String(err)
-          }`
-        );
-      }
-    }
-
-    setDepositSuccess(true);
-    setTimeout(() => {
-      setDepositSuccess((prev) => {
-        if (prev) {
-          setShowDepositModal(false);
-          refreshState();
-          return false;
+    try {
+      if (supabaseService.isAvailable()) {
+        try {
+          await supabaseService.createTransaction({
+            userId: state.currentUser.id,
+            userEmail: state.currentUser.email,
+            type: TransactionType.DEPOSIT,
+            amount: depositAmount,
+            method: `${depositMethod} Network Transfer`
+          });
+          storageService.createTransaction(
+            state.currentUser.id,
+            TransactionType.DEPOSIT,
+            depositAmount,
+            `${depositMethod} Transfer`
+          );
+        } catch (err) {
+          console.error('Supabase deposit insert failed, saving locally only:', err);
+          storageService.createTransaction(
+            state.currentUser.id,
+            TransactionType.DEPOSIT,
+            depositAmount,
+            `${depositMethod} Transfer`
+          );
+          setSyncWarning(
+            `This deposit was only saved on this device and was NOT sent to the server database, so it will not appear in the admin panel. Error: ${
+              err instanceof Error ? err.message : String(err)
+            }`
+          );
         }
-        return false;
-      });
-    }, 3800);
+      } else {
+        try {
+          await apiService.createTransaction({
+            type: TransactionType.DEPOSIT,
+            amount: depositAmount,
+            method: `${depositMethod} Network Transfer`
+          });
+        } catch (err) {
+          console.error('API deposit insert failed, saving locally only:', err);
+          storageService.createTransaction(
+            state.currentUser.id,
+            TransactionType.DEPOSIT,
+            depositAmount,
+            `${depositMethod} Transfer`
+          );
+          setSyncWarning(
+            `This deposit was only saved on this device and was NOT sent to the server database, so it will not appear in the admin panel. Error: ${
+              err instanceof Error ? err.message : String(err)
+            }`
+          );
+        }
+      }
+
+      setDepositSuccess(true);
+      setTimeout(() => {
+        setDepositSuccess((prev) => {
+          if (prev) {
+            setShowDepositModal(false);
+            refreshState();
+            return false;
+          }
+          return false;
+        });
+      }, 3800);
+    } finally {
+      setDepositSubmitting(false);
+    }
   };
 
   // Withdraw Submit
@@ -769,28 +768,48 @@ export default function App() {
                         <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                           New Password
                         </label>
-                        <input
-                          required
-                          type="password"
-                          value={resetPassword}
-                          onChange={(e) => setResetPassword(e.target.value)}
-                          placeholder="At least 6 characters"
-                          className="w-full bg-slate-900/80 border border-slate-700 focus:border-cyan-400 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none"
-                        />
+                        <div className="relative">
+                          <input
+                            required
+                            type={showResetPassword ? 'text' : 'password'}
+                            value={resetPassword}
+                            onChange={(e) => setResetPassword(e.target.value)}
+                            placeholder="At least 6 characters"
+                            className="w-full bg-slate-900/80 border border-slate-700 focus:border-cyan-400 rounded-xl pl-4 pr-11 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none transition"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowResetPassword(!showResetPassword)}
+                            aria-label={showResetPassword ? 'Hide password' : 'Show password'}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-cyan-300 transition p-1"
+                          >
+                            <i className={`fas ${showResetPassword ? 'fa-eye-slash' : 'fa-eye'} text-sm`}></i>
+                          </button>
+                        </div>
                       </div>
 
                       <div>
                         <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                           Confirm New Password
                         </label>
-                        <input
-                          required
-                          type="password"
-                          value={resetConfirmPassword}
-                          onChange={(e) => setResetConfirmPassword(e.target.value)}
-                          placeholder="Re-enter your new password"
-                          className="w-full bg-slate-900/80 border border-slate-700 focus:border-cyan-400 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none"
-                        />
+                        <div className="relative">
+                          <input
+                            required
+                            type={showResetConfirmPassword ? 'text' : 'password'}
+                            value={resetConfirmPassword}
+                            onChange={(e) => setResetConfirmPassword(e.target.value)}
+                            placeholder="Re-enter your new password"
+                            className="w-full bg-slate-900/80 border border-slate-700 focus:border-cyan-400 rounded-xl pl-4 pr-11 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none transition"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowResetConfirmPassword(!showResetConfirmPassword)}
+                            aria-label={showResetConfirmPassword ? 'Hide password' : 'Show password'}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-cyan-300 transition p-1"
+                          >
+                            <i className={`fas ${showResetConfirmPassword ? 'fa-eye-slash' : 'fa-eye'} text-sm`}></i>
+                          </button>
+                        </div>
                       </div>
 
                       <button
@@ -801,7 +820,7 @@ export default function App() {
                         {loading ? (
                           <span className="w-5 h-5 border-2 border-slate-950/30 border-t-slate-950 rounded-full animate-spin"></span>
                         ) : (
-                          <span>Rest Password</span>
+                          <span>Reset Password</span>
                         )}
                       </button>
                     </form>
@@ -895,14 +914,24 @@ export default function App() {
                             </button>
                           )}
                         </div>
-                        <input
-                          required
-                          type="password"
-                          value={password}
-                          onChange={(e) => setPassword(e.target.value)}
-                          placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
-                          className="w-full bg-slate-900/80 border border-slate-700 focus:border-cyan-400 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none"
-                        />
+                        <div className="relative">
+                          <input
+                            required
+                            type={showPassword ? 'text' : 'password'}
+                            value={password}
+                            onChange={(e) => setPassword(e.target.value)}
+                            placeholder="Enter your password"
+                            className="w-full bg-slate-900/80 border border-slate-700 focus:border-cyan-400 rounded-xl pl-4 pr-11 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none transition"
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setShowPassword(!showPassword)}
+                            aria-label={showPassword ? 'Hide password' : 'Show password'}
+                            className="absolute right-3 top-1/2 -translate-y-1/2 text-slate-400 hover:text-cyan-300 transition p-1"
+                          >
+                            <i className={`fas ${showPassword ? 'fa-eye-slash' : 'fa-eye'} text-sm`}></i>
+                          </button>
+                        </div>
                       </div>
 
                       <button
@@ -1435,7 +1464,10 @@ export default function App() {
                 />
                 {syncWarning && (
                   <div className="mt-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs leading-relaxed">
-                    <p className="font-bold mb-1">âš  Sync issue detected</p>
+                    <p className="font-bold mb-1 flex items-center gap-1.5">
+                      <i className="fas fa-triangle-exclamation text-amber-400"></i>
+                      <span>Sync issue detected</span>
+                    </p>
                     <p>{syncWarning}</p>
                     <p className="mt-1 text-rose-200/80">
                       Please contact support and share this message so we can manually record your transaction.
@@ -1606,7 +1638,10 @@ export default function App() {
 
               {syncWarning && (
                 <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs leading-relaxed">
-                  <p className="font-bold mb-1">âš  Sync issue detected</p>
+                  <p className="font-bold mb-1 flex items-center gap-1.5">
+                    <i className="fas fa-triangle-exclamation text-amber-400"></i>
+                    <span>Sync issue detected</span>
+                  </p>
                   <p>{syncWarning}</p>
                   <p className="mt-1 text-rose-200/80">
                     Please contact support and share this message so we can manually record your transaction.
