@@ -2,6 +2,19 @@ import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { User, UserRole, Transaction, TransactionStatus, TransactionType, SystemConfig } from '../types';
 import { INITIAL_CONFIG } from '../constants';
 
+function toValidUuid(id: string): string {
+  if (/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)) {
+    return id;
+  }
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) {
+    hash = ((hash << 5) - hash) + id.charCodeAt(i);
+    hash |= 0;
+  }
+  const hex = Math.abs(hash).toString(16).padStart(8, '0');
+  return `${hex.slice(0, 8)}-0000-4000-8000-${hex.padEnd(12, '0').slice(0, 12)}`;
+}
+
 export const supabaseService = {
   isAvailable: () => isSupabaseConfigured && Boolean(supabase),
 
@@ -150,12 +163,25 @@ export const supabaseService = {
     };
   },
 
-  async getTransactions(userId?: string, isAdmin = false): Promise<Transaction[]> {
+  async getTransactions(userId?: string, isAdmin = false, userEmail?: string): Promise<Transaction[]> {
     if (!supabase) return [];
 
     let query = supabase.from('transactions').select('*');
-    if (!isAdmin && userId) {
-      query = query.eq('user_id', userId);
+    if (!isAdmin && (userId || userEmail)) {
+      const conditions: string[] = [];
+      if (userId) {
+        conditions.push(`user_id.eq.${userId}`);
+        const uuidForm = toValidUuid(userId);
+        if (uuidForm !== userId) {
+          conditions.push(`user_id.eq.${uuidForm}`);
+        }
+      }
+      if (userEmail) {
+        conditions.push(`user_email.eq.${userEmail.toLowerCase().trim()}`);
+      }
+      if (conditions.length > 0) {
+        query = query.or(conditions.join(','));
+      }
     }
     query = query.order('date', { ascending: false });
 
@@ -163,7 +189,7 @@ export const supabaseService = {
     if (error || !data) return [];
 
     return data.map((t: any) => ({
-      id: t.id,
+      id: String(t.id),
       userId: t.user_id,
       userEmail: t.user_email || '',
       type: t.type as TransactionType,
@@ -185,7 +211,7 @@ export const supabaseService = {
   }): Promise<Transaction> {
     if (!supabase) throw new Error('Supabase is not configured.');
 
-    const newTx = {
+    let payload: any = {
       user_id: tx.userId,
       user_email: tx.userEmail,
       type: tx.type,
@@ -195,21 +221,29 @@ export const supabaseService = {
       plan_id: tx.planId || null,
     };
 
-    const { data, error } = await supabase.from('transactions').insert([newTx]).select().single();
+    let { data, error } = await supabase.from('transactions').insert([payload]).select().single();
+
+    // If Postgres complains about UUID format, retry with deterministic UUID
+    if (error && error.message?.includes('invalid input syntax for type uuid')) {
+      payload.user_id = toValidUuid(tx.userId);
+      const retry = await supabase.from('transactions').insert([payload]).select().single();
+      data = retry.data;
+      error = retry.error;
+    }
 
     if (error) {
       throw new Error(error.message);
     }
 
     return {
-      id: data.id,
+      id: String(data.id),
       userId: data.user_id,
-      userEmail: data.user_email,
+      userEmail: data.user_email || tx.userEmail,
       type: data.type as TransactionType,
       amount: Number(data.amount),
       status: data.status as TransactionStatus,
       method: data.method,
-      date: data.date || new Date().toISOString(),
+      date: data.date || data.created_at || new Date().toISOString(),
       planId: data.plan_id,
     };
   },

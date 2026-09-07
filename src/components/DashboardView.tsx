@@ -36,8 +36,10 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 }) => {
   const [timeframe, setTimeframe] = useState<'7D' | '30D' | '90D'>('30D');
 
-  const userTxs = transactions.filter((t) => t.userId === user.id);
-  const recent = userTxs.slice(0, 5);
+  const isAdmin = user.role === UserRole.ADMIN;
+  const userTxs = isAdmin ? transactions : transactions.filter((t) => t.userId === user.id);
+  const recent = userTxs.slice(0, 8);
+  const pendingTxs = transactions.filter((t) => t.status === TransactionStatus.PENDING);
 
   const totalDeposited = userTxs
     .filter((t) => t.type === TransactionType.DEPOSIT && t.status === TransactionStatus.COMPLETED)
@@ -56,14 +58,16 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
           <h1 className="text-2xl sm:text-3xl font-black tracking-tight text-white flex items-center gap-2">
-            Welcome back, <span className="text-cyan-400">{user.fullName || 'Investor'}</span>
+            Welcome back, <span className="text-cyan-400">{user.fullName || (isAdmin ? 'Administrator' : 'Investor')}</span>
           </h1>
           <p className="text-sm text-slate-400 mt-1">
-            Real-time algorithmic trading node & capital management overview.
+            {isAdmin
+              ? 'Platform custody reserves, node health, and transaction audit management.'
+              : 'Real-time algorithmic trading node & capital management overview.'}
           </p>
         </div>
         <div className="flex items-center gap-2.5">
-          {user.role !== UserRole.ADMIN ? (
+          {!isAdmin ? (
             <>
               <button
                 onClick={onOpenDeposit}
@@ -81,16 +85,51 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
               </button>
             </>
           ) : (
-            <button
-              onClick={() => onNavigateTab('admin-overview')}
-              className="px-4 py-2.5 rounded-xl text-xs font-bold bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-lg shadow-cyan-500/20 transition flex items-center gap-2"
-            >
-              <i className="fas fa-shield-halved"></i>
-              <span>Admin Console</span>
-            </button>
+            <div className="flex items-center gap-2">
+              <button
+                onClick={() => onNavigateTab('admin-tx')}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold bg-amber-500 hover:bg-amber-400 text-slate-950 shadow-lg shadow-amber-500/20 transition flex items-center gap-2"
+              >
+                <i className="fas fa-clipboard-check"></i>
+                <span>TX Approvals ({pendingTxs.length})</span>
+              </button>
+              <button
+                onClick={() => onNavigateTab('admin-overview')}
+                className="px-4 py-2.5 rounded-xl text-xs font-bold bg-cyan-500 hover:bg-cyan-400 text-slate-950 shadow-lg shadow-cyan-500/20 transition flex items-center gap-2"
+              >
+                <i className="fas fa-shield-halved"></i>
+                <span>Admin Console</span>
+              </button>
+            </div>
           )}
         </div>
       </div>
+
+      {/* Admin Pending Approvals Notification Alert */}
+      {isAdmin && pendingTxs.length > 0 && (
+        <div className="p-4 sm:p-5 rounded-2xl bg-amber-500/15 border border-amber-500/30 flex flex-col sm:flex-row sm:items-center justify-between gap-4 shadow-lg shadow-amber-500/5">
+          <div className="flex items-start sm:items-center gap-3">
+            <div className="w-10 h-10 rounded-xl bg-amber-500/20 text-amber-300 border border-amber-500/30 flex items-center justify-center shrink-0">
+              <i className="fas fa-bell text-base animate-pulse"></i>
+            </div>
+            <div>
+              <p className="text-sm font-bold text-amber-200">
+                {pendingTxs.length} Incoming {pendingTxs.length === 1 ? 'Transaction' : 'Transactions'} Awaiting Approval
+              </p>
+              <p className="text-xs text-amber-300/80 mt-0.5">
+                New user deposit(s) or withdrawal request(s) are queued. Review and confirm them to update user balances.
+              </p>
+            </div>
+          </div>
+          <button
+            onClick={() => onNavigateTab('admin-tx')}
+            className="self-start sm:self-auto px-4 py-2 rounded-xl text-xs font-bold bg-amber-400 text-slate-950 hover:bg-amber-300 transition shrink-0 flex items-center gap-2"
+          >
+            <span>Open Approvals Queue</span>
+            <i className="fas fa-arrow-right text-[10px]"></i>
+          </button>
+        </div>
+      )}
 
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -283,17 +322,24 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <thead className="text-[11px] uppercase tracking-wider text-slate-400 border-b border-slate-800 pb-2">
               <tr>
                 <th className="py-3 px-3">Reference</th>
+                {isAdmin && <th className="py-3 px-3">User Account</th>}
                 <th className="py-3 px-3">Type</th>
                 <th className="py-3 px-3">Method / Route</th>
                 <th className="py-3 px-3">Amount</th>
                 <th className="py-3 px-3">Status</th>
                 <th className="py-3 px-3">Date</th>
+                {isAdmin && <th className="py-3 px-3 text-right">Action</th>}
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-800/80 text-slate-300">
               {recent.map((tx) => (
                 <tr key={tx.id} className="hover:bg-slate-800/30 transition">
                   <td className="py-3 px-3 font-mono text-slate-400">#{tx.id.slice(0, 10)}</td>
+                  {isAdmin && (
+                    <td className="py-3 px-3 font-medium text-white max-w-[180px] truncate">
+                      {tx.userEmail || tx.userId}
+                    </td>
+                  )}
                   <td className="py-3 px-3 font-semibold text-white">{tx.type}</td>
                   <td className="py-3 px-3 text-slate-400">{tx.method}</td>
                   <td className="py-3 px-3 font-mono font-bold text-white">${tx.amount.toLocaleString()}</td>
@@ -311,11 +357,25 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                     </span>
                   </td>
                   <td className="py-3 px-3 text-slate-400">{new Date(tx.date).toLocaleDateString()}</td>
+                  {isAdmin && (
+                    <td className="py-3 px-3 text-right">
+                      {tx.status === TransactionStatus.PENDING ? (
+                        <button
+                          onClick={() => onNavigateTab('admin-tx')}
+                          className="px-2.5 py-1 rounded-lg text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30 transition"
+                        >
+                          Review
+                        </button>
+                      ) : (
+                        <span className="text-[11px] text-slate-500">Logged</span>
+                      )}
+                    </td>
+                  )}
                 </tr>
               ))}
               {recent.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="py-8 text-center text-slate-500">
+                  <td colSpan={isAdmin ? 8 : 6} className="py-8 text-center text-slate-500">
                     No transactions recorded yet. Make a deposit or start an investment plan.
                   </td>
                 </tr>
@@ -356,6 +416,12 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 </span>
               </div>
 
+              {isAdmin && tx.userEmail && (
+                <div className="text-xs text-slate-300 font-medium truncate">
+                  User: <span className="text-white font-semibold">{tx.userEmail}</span>
+                </div>
+              )}
+
               <div className="flex items-baseline justify-between pt-1">
                 <span className="text-xs text-slate-400 truncate max-w-[200px]">{tx.method}</span>
                 <span className="font-mono text-base font-black text-white">
@@ -367,6 +433,15 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <span>Timestamp</span>
                 <span>{new Date(tx.date).toLocaleDateString()} {new Date(tx.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
               </div>
+
+              {isAdmin && tx.status === TransactionStatus.PENDING && (
+                <button
+                  onClick={() => onNavigateTab('admin-tx')}
+                  className="w-full mt-2 py-2 rounded-lg text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/30 hover:bg-amber-500/30 transition text-center"
+                >
+                  Review in TX Approvals Queue
+                </button>
+              )}
             </div>
           ))}
 

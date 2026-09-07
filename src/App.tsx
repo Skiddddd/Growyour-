@@ -58,23 +58,80 @@ export default function App() {
   // Sync state from Supabase, server API, or fallback to local storage
   const refreshState = useCallback(async () => {
     try {
-      // 1. Prioritize Supabase if configured and authenticated
+      // 1. Prioritize Supabase if configured
       if (supabaseService.isAvailable()) {
-        const currentUser = await supabaseService.getCurrentUser();
+        const supaUser = await supabaseService.getCurrentUser().catch(() => null);
+        const localState = storageService.getState();
+        const currentUser = supaUser || localState.currentUser;
+
         if (currentUser) {
-          const isAdmin = currentUser.role === UserRole.ADMIN;
-          const [txs, config, users] = await Promise.all([
-            supabaseService.getTransactions(currentUser.id, isAdmin).catch(() => []),
+          const isAdmin =
+            currentUser.role === UserRole.ADMIN ||
+            (currentUser.role as any) === 'ADMIN' ||
+            currentUser.email?.toLowerCase() === 'admin@growyour.io';
+
+          const [supaTxs, supaConfig, supaUsers] = await Promise.all([
+            supabaseService.getTransactions(currentUser.id, isAdmin, currentUser.email).catch(() => []),
             supabaseService.getSystemConfig().catch(() => null),
             isAdmin ? supabaseService.getUsers().catch(() => []) : Promise.resolve([])
           ]);
 
+          // Merge Supabase transactions with local ones seamlessly
+          const localTxs = localState.transactions || [];
+          const mergedTxsMap = new Map<string, Transaction>();
+
+          localTxs.forEach((t) => {
+            if (isAdmin || t.userId === currentUser.id || (t.userEmail && t.userEmail.toLowerCase() === currentUser.email?.toLowerCase())) {
+              mergedTxsMap.set(t.id, t);
+            }
+          });
+
+          supaTxs.forEach((t) => {
+            mergedTxsMap.set(t.id, t);
+          });
+
+          const mergedTxs = Array.from(mergedTxsMap.values()).sort(
+            (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+          );
+
+          // Auto-sync any unsynced local pending deposits to Supabase in the background
+          if (!isAdmin && currentUser.email) {
+            const unsyncedPending = localTxs.filter(
+              (lt) =>
+                lt.status === TransactionStatus.PENDING &&
+                !supaTxs.some(
+                  (st) =>
+                    st.id === lt.id ||
+                    (st.userEmail?.toLowerCase() === lt.userEmail?.toLowerCase() &&
+                      st.amount === lt.amount &&
+                      Math.abs(new Date(st.date).getTime() - new Date(lt.date).getTime()) < 120000)
+                )
+            );
+            if (unsyncedPending.length > 0) {
+              for (const ut of unsyncedPending) {
+                supabaseService
+                  .createTransaction({
+                    userId: currentUser.id,
+                    userEmail: currentUser.email,
+                    type: ut.type,
+                    amount: ut.amount,
+                    method: ut.method,
+                    planId: ut.planId
+                  })
+                  .catch(() => {});
+              }
+            }
+          }
+
           setState((prev) => ({
             ...prev,
-            currentUser,
-            users: isAdmin && users.length > 0 ? users : prev.users,
-            transactions: txs,
-            systemConfig: config || prev.systemConfig
+            currentUser: {
+              ...currentUser,
+              role: isAdmin ? UserRole.ADMIN : UserRole.USER
+            },
+            users: isAdmin && supaUsers.length > 0 ? supaUsers : prev.users,
+            transactions: mergedTxs,
+            systemConfig: supaConfig || prev.systemConfig
           }));
           return;
         }
@@ -117,13 +174,20 @@ export default function App() {
     setState(storageService.getState());
   }, []);
 
-  // Load remembered email and initial state
+  // Load remembered email and initial state, with periodic auto-sync
   useEffect(() => {
     const savedEmail = localStorage.getItem(REMEMBERED_EMAIL_KEY);
     if (savedEmail) {
       setEmail(savedEmail);
     }
     refreshState();
+
+    // Auto-poll every 8 seconds so deposits appear on the admin console in real time
+    const interval = setInterval(() => {
+      refreshState();
+    }, 8000);
+
+    return () => clearInterval(interval);
   }, [refreshState]);
 
   // Handle Authentication
@@ -871,6 +935,9 @@ export default function App() {
   }
 
   // Authenticated Portal
+  const isCurrentAdmin = state.currentUser?.role === UserRole.ADMIN;
+  const pendingTxCount = state.transactions.filter((t) => t.status === TransactionStatus.PENDING).length;
+
   return (
     <Layout
       user={state.currentUser}
@@ -879,6 +946,7 @@ export default function App() {
       setActiveTab={setActiveTab}
       onOpenDeposit={() => setShowDepositModal(true)}
       onOpenWithdraw={() => setShowWithdrawModal(true)}
+      pendingCount={pendingTxCount}
     >
       {/* 1. Dashboard View */}
       {activeTab === 'dashboard' && (
@@ -904,17 +972,29 @@ export default function App() {
       {/* 3. Transactions / Ledger View */}
       {activeTab === 'transactions' && (
         <div className="space-y-6">
-          <div className="flex items-center justify-between">
+          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
             <div>
               <h1 className="text-2xl sm:text-3xl font-black text-white">Full Financial Ledger</h1>
-              <p className="text-sm text-slate-400 mt-1">Audit trail for all deposits, withdrawals, and strategy purchases.</p>
+              <p className="text-sm text-slate-400 mt-1">
+                {isCurrentAdmin
+                  ? 'Comprehensive platform ledger of all client deposits, withdrawals, and vault activities.'
+                  : 'Audit trail for all your deposits, withdrawals, and strategy purchases.'}
+              </p>
             </div>
-            {state.currentUser.role !== UserRole.ADMIN && (
+            {!isCurrentAdmin ? (
               <button
                 onClick={() => setShowDepositModal(true)}
                 className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-500 text-slate-950"
               >
                 + Deposit
+              </button>
+            ) : (
+              <button
+                onClick={() => setActiveTab('admin-tx')}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 hover:bg-amber-500/30 transition flex items-center gap-2"
+              >
+                <i className="fas fa-clipboard-check"></i>
+                <span>Review TX Approvals ({pendingTxCount})</span>
               </button>
             )}
           </div>
@@ -926,6 +1006,7 @@ export default function App() {
                 <thead className="text-[11px] uppercase tracking-wider text-slate-400 border-b border-slate-800">
                   <tr>
                     <th className="py-3 px-3">Transaction ID</th>
+                    {isCurrentAdmin && <th className="py-3 px-3">User Account</th>}
                     <th className="py-3 px-3">Type</th>
                     <th className="py-3 px-3">Method / Destination</th>
                     <th className="py-3 px-3">Amount</th>
@@ -935,10 +1016,15 @@ export default function App() {
                 </thead>
                 <tbody className="divide-y divide-slate-800/80 text-slate-300">
                   {state.transactions
-                    .filter((t) => t.userId === state.currentUser?.id)
+                    .filter((t) => (isCurrentAdmin ? true : t.userId === state.currentUser?.id))
                     .map((tx) => (
                       <tr key={tx.id} className="hover:bg-slate-800/30">
-                        <td className="py-3.5 px-3 font-mono text-slate-400">#{tx.id}</td>
+                        <td className="py-3.5 px-3 font-mono text-slate-400">#{tx.id.slice(0, 10)}</td>
+                        {isCurrentAdmin && (
+                          <td className="py-3.5 px-3 font-medium text-white max-w-[180px] truncate">
+                            {tx.userEmail || tx.userId}
+                          </td>
+                        )}
                         <td className="py-3.5 px-3 font-semibold text-white">{tx.type}</td>
                         <td className="py-3.5 px-3 text-slate-400">{tx.method}</td>
                         <td className="py-3.5 px-3 font-mono font-bold text-white">
@@ -960,10 +1046,10 @@ export default function App() {
                         <td className="py-3.5 px-3 text-slate-400">{new Date(tx.date).toLocaleString()}</td>
                       </tr>
                     ))}
-                  {state.transactions.filter((t) => t.userId === state.currentUser?.id).length === 0 && (
+                  {state.transactions.filter((t) => (isCurrentAdmin ? true : t.userId === state.currentUser?.id)).length === 0 && (
                     <tr>
-                      <td colSpan={6} className="py-10 text-center text-slate-500">
-                        No transactions found in your ledger.
+                      <td colSpan={isCurrentAdmin ? 7 : 6} className="py-10 text-center text-slate-500">
+                        No transactions found in the ledger.
                       </td>
                     </tr>
                   )}
@@ -974,7 +1060,7 @@ export default function App() {
             {/* Mobile Responsive Card-List View */}
             <div className="block md:hidden space-y-3">
               {state.transactions
-                .filter((t) => t.userId === state.currentUser?.id)
+                .filter((t) => (isCurrentAdmin ? true : t.userId === state.currentUser?.id))
                 .map((tx) => (
                   <div key={tx.id} className="p-4 rounded-xl bg-slate-950/70 border border-slate-800/80 space-y-2.5">
                     <div className="flex items-center justify-between">
@@ -1005,6 +1091,12 @@ export default function App() {
                       </span>
                     </div>
 
+                    {isCurrentAdmin && tx.userEmail && (
+                      <div className="text-xs text-slate-300 font-medium truncate">
+                        User: <span className="text-white font-semibold">{tx.userEmail}</span>
+                      </div>
+                    )}
+
                     <div className="flex items-baseline justify-between pt-1">
                       <span className="text-xs text-slate-400 truncate max-w-[200px]">{tx.method}</span>
                       <span className="font-mono text-base font-black text-white">
@@ -1013,15 +1105,15 @@ export default function App() {
                     </div>
 
                     <div className="flex items-center justify-between text-[11px] text-slate-500 pt-2 border-t border-slate-900">
-                      <span>Date</span>
+                      <span>Timestamp</span>
                       <span>{new Date(tx.date).toLocaleDateString()} {new Date(tx.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</span>
                     </div>
                   </div>
                 ))}
 
-              {state.transactions.filter((t) => t.userId === state.currentUser?.id).length === 0 && (
+              {state.transactions.filter((t) => (isCurrentAdmin ? true : t.userId === state.currentUser?.id)).length === 0 && (
                 <div className="py-10 text-center text-slate-500 text-xs">
-                  No transactions found in your ledger.
+                  No transactions found in the ledger.
                 </div>
               )}
             </div>
