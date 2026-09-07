@@ -854,63 +854,6 @@ export const AdminView: React.FC<AdminViewProps> = ({
           </button>
         </form>
 
-        {/* Database & RLS Sync Helper */}
-        <div className="p-6 rounded-2xl bg-slate-900 border border-slate-800 space-y-4">
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 flex items-center justify-center">
-                <i className="fas fa-database text-sm"></i>
-              </div>
-              <div>
-                <h3 className="text-sm font-bold text-white">Supabase RLS & Sync Setup (fix-rls.sql)</h3>
-                <p className="text-xs text-slate-400">File located at: <code className="text-cyan-300 font-mono">/fix-rls.sql</code></p>
-              </div>
-            </div>
-            <a
-              href="https://supabase.com/dashboard/project/bttvoorzlzmxzppcigid/sql/new"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/20 text-emerald-300 hover:bg-emerald-500 hover:text-slate-950 border border-emerald-500/30 transition flex items-center gap-2"
-            >
-              <span>Open Supabase SQL Editor</span>
-              <i className="fas fa-arrow-up-right-from-square text-[10px]"></i>
-            </a>
-          </div>
-
-          <p className="text-xs text-slate-300 leading-relaxed">
-            If user deposits are not writing into Supabase due to row-level security permissions, run the SQL script stored in <code className="text-cyan-300 font-mono">fix-rls.sql</code> in your Supabase SQL Editor.
-          </p>
-
-          <button
-            type="button"
-            onClick={() => {
-              const script = `-- GROWYOUR$ SUPABASE SYNC FIX
-ALTER TABLE public.transactions DROP CONSTRAINT IF EXISTS transactions_user_id_fkey;
-ALTER TABLE public.transactions ALTER COLUMN user_id TYPE TEXT;
-ALTER TABLE public.profiles ALTER COLUMN id TYPE TEXT;
-ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.profiles ENABLE ROW LEVEL SECURITY;
-ALTER TABLE public.system_config ENABLE ROW LEVEL SECURITY;
-
-CREATE POLICY "Allow all transactions select" ON public.transactions FOR SELECT TO anon, authenticated USING (true);
-CREATE POLICY "Allow all transactions insert" ON public.transactions FOR INSERT TO anon, authenticated WITH CHECK (true);
-CREATE POLICY "Allow all transactions update" ON public.transactions FOR UPDATE TO anon, authenticated USING (true);
-
-CREATE POLICY "Allow all profiles select" ON public.profiles FOR SELECT TO anon, authenticated USING (true);
-CREATE POLICY "Allow all profiles insert" ON public.profiles FOR INSERT TO anon, authenticated WITH CHECK (true);
-CREATE POLICY "Allow all profiles update" ON public.profiles FOR UPDATE TO anon, authenticated USING (true);
-
-CREATE POLICY "Allow all config select" ON public.system_config FOR SELECT TO anon, authenticated USING (true);
-CREATE POLICY "Allow all config update" ON public.system_config FOR ALL TO anon, authenticated USING (true);`;
-              navigator.clipboard.writeText(script);
-              alert('Copied Supabase SQL Script to clipboard!');
-            }}
-            className="w-full py-2.5 px-4 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 transition flex items-center justify-center gap-2"
-          >
-            <i className="fas fa-copy"></i>
-            <span>Copy Full SQL Script to Clipboard</span>
-          </button>
-        </div>
       </div>
     );
   }
