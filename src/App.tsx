@@ -203,12 +203,20 @@ export default function App() {
               return;
             }
           } catch (supaErr: any) {
-            console.warn('Supabase sign-up note:', supaErr);
+            console.error('Supabase sign-up failed:', supaErr);
             if (supaErr.message?.includes('already registered')) {
               setAuthError('An account with this email already exists. Try signing in.');
               setLoading(false);
               return;
             }
+            // Any other Supabase error means the account was NOT created on the
+            // server. Show the real reason instead of silently creating a
+            // local-only account that would never sync or appear for admin.
+            setAuthError(
+              `Registration failed: ${supaErr.message || 'Unknown error'}. Your account was NOT created â€” please try again or contact support with this message.`
+            );
+            setLoading(false);
+            return;
           }
         }
         try {
