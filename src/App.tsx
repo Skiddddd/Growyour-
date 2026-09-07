@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   AppState,
@@ -46,6 +47,12 @@ export default function App() {
   const [depositMethod, setDepositMethod] = useState<'BTC' | 'ETH' | 'USDT'>('USDT');
   const [depositSuccess, setDepositSuccess] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
+
+  // Set when a transaction could not be written to the shared Supabase
+  // database and fell back to on-device storage only. When this happens the
+  // transaction is invisible to the admin, so we surface it instead of
+  // failing silently.
+  const [syncWarning, setSyncWarning] = useState<string | null>(null);
 
   const authCardRef = useRef<HTMLDivElement | null>(null);
 
@@ -385,6 +392,8 @@ export default function App() {
     e.preventDefault();
     if (!state.currentUser || depositAmount <= 0) return;
 
+    setSyncWarning(null);
+
     if (supabaseService.isAvailable()) {
       try {
         await supabaseService.createTransaction({
@@ -395,12 +404,17 @@ export default function App() {
           method: `${depositMethod} Network Transfer`
         });
       } catch (err) {
-        console.warn('Supabase deposit error, falling back:', err);
+        console.error('Supabase deposit insert failed, saving locally only:', err);
         storageService.createTransaction(
           state.currentUser.id,
           TransactionType.DEPOSIT,
           depositAmount,
           `${depositMethod} Transfer`
+        );
+        setSyncWarning(
+          `This deposit was only saved on this device and was NOT sent to the server database, so it will not appear in the admin panel. Error: ${
+            err instanceof Error ? err.message : String(err)
+          }`
         );
       }
     } else {
@@ -410,12 +424,18 @@ export default function App() {
           amount: depositAmount,
           method: `${depositMethod} Network Transfer`
         });
-      } catch {
+      } catch (err) {
+        console.error('API deposit insert failed, saving locally only:', err);
         storageService.createTransaction(
           state.currentUser.id,
           TransactionType.DEPOSIT,
           depositAmount,
           `${depositMethod} Transfer`
+        );
+        setSyncWarning(
+          `This deposit was only saved on this device and was NOT sent to the server database, so it will not appear in the admin panel. Error: ${
+            err instanceof Error ? err.message : String(err)
+          }`
         );
       }
     }
@@ -449,6 +469,8 @@ export default function App() {
       return;
     }
 
+    setSyncWarning(null);
+
     if (supabaseService.isAvailable()) {
       try {
         await supabaseService.createTransaction({
@@ -458,12 +480,18 @@ export default function App() {
           amount: withdrawAmount,
           method: `External: ${withdrawAddress.slice(0, 10)}...`
         });
-      } catch {
+      } catch (err) {
+        console.error('Supabase withdrawal insert failed, saving locally only:', err);
         storageService.createTransaction(
           state.currentUser.id,
           TransactionType.WITHDRAWAL,
           withdrawAmount,
           `External: ${withdrawAddress.slice(0, 10)}...`
+        );
+        setSyncWarning(
+          `This withdrawal request was only saved on this device and was NOT sent to the server database, so it will not appear in the admin panel. Error: ${
+            err instanceof Error ? err.message : String(err)
+          }`
         );
       }
     } else {
@@ -473,12 +501,18 @@ export default function App() {
           amount: withdrawAmount,
           method: `External: ${withdrawAddress.slice(0, 10)}...`
         });
-      } catch {
+      } catch (err) {
+        console.error('API withdrawal insert failed, saving locally only:', err);
         storageService.createTransaction(
           state.currentUser.id,
           TransactionType.WITHDRAWAL,
           withdrawAmount,
           `External: ${withdrawAddress.slice(0, 10)}...`
+        );
+        setSyncWarning(
+          `This withdrawal request was only saved on this device and was NOT sent to the server database, so it will not appear in the admin panel. Error: ${
+            err instanceof Error ? err.message : String(err)
+          }`
         );
       }
     }
@@ -494,6 +528,8 @@ export default function App() {
   const handleInvest = async (planId: string, amount: number) => {
     if (!state.currentUser) return;
 
+    setSyncWarning(null);
+
     if (supabaseService.isAvailable()) {
       try {
         await supabaseService.createTransaction({
@@ -504,13 +540,19 @@ export default function App() {
           method: 'Compounding Investment Vault',
           planId
         });
-      } catch {
+      } catch (err) {
+        console.error('Supabase investment insert failed, saving locally only:', err);
         storageService.createTransaction(
           state.currentUser.id,
           TransactionType.INVESTMENT,
           amount,
           'Compounding Investment Vault',
           planId
+        );
+        setSyncWarning(
+          `This investment was only saved on this device and was NOT sent to the server database, so it will not appear in the admin panel. Error: ${
+            err instanceof Error ? err.message : String(err)
+          }`
         );
       }
     } else {
@@ -521,13 +563,19 @@ export default function App() {
           method: 'Compounding Investment Vault',
           planId
         });
-      } catch {
+      } catch (err) {
+        console.error('API investment insert failed, saving locally only:', err);
         storageService.createTransaction(
           state.currentUser.id,
           TransactionType.INVESTMENT,
           amount,
           'Compounding Investment Vault',
           planId
+        );
+        setSyncWarning(
+          `This investment was only saved on this device and was NOT sent to the server database, so it will not appear in the admin panel. Error: ${
+            err instanceof Error ? err.message : String(err)
+          }`
         );
       }
     }
@@ -852,7 +900,7 @@ export default function App() {
                           type="password"
                           value={password}
                           onChange={(e) => setPassword(e.target.value)}
-                          placeholder="••••••••"
+                          placeholder="â€¢â€¢â€¢â€¢â€¢â€¢â€¢â€¢"
                           className="w-full bg-slate-900/80 border border-slate-700 focus:border-cyan-400 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none"
                         />
                       </div>
@@ -944,8 +992,8 @@ export default function App() {
       onLogout={handleLogout}
       activeTab={activeTab}
       setActiveTab={setActiveTab}
-      onOpenDeposit={() => setShowDepositModal(true)}
-      onOpenWithdraw={() => setShowWithdrawModal(true)}
+      onOpenDeposit={() => { setSyncWarning(null); setShowDepositModal(true); }}
+      onOpenWithdraw={() => { setSyncWarning(null); setShowWithdrawModal(true); }}
       pendingCount={pendingTxCount}
     >
       {/* 1. Dashboard View */}
@@ -954,8 +1002,8 @@ export default function App() {
           user={state.currentUser}
           transactions={state.transactions}
           onNavigateTab={setActiveTab}
-          onOpenDeposit={() => setShowDepositModal(true)}
-          onOpenWithdraw={() => setShowWithdrawModal(true)}
+          onOpenDeposit={() => { setSyncWarning(null); setShowDepositModal(true); }}
+          onOpenWithdraw={() => { setSyncWarning(null); setShowWithdrawModal(true); }}
         />
       )}
 
@@ -965,7 +1013,7 @@ export default function App() {
           user={state.currentUser}
           plans={state.plans}
           onInvest={handleInvest}
-          onOpenDeposit={() => setShowDepositModal(true)}
+          onOpenDeposit={() => { setSyncWarning(null); setShowDepositModal(true); }}
         />
       )}
 
@@ -983,7 +1031,7 @@ export default function App() {
             </div>
             {!isCurrentAdmin ? (
               <button
-                onClick={() => setShowDepositModal(true)}
+                onClick={() => { setSyncWarning(null); setShowDepositModal(true); }}
                 className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-500 text-slate-950"
               >
                 + Deposit
@@ -1197,7 +1245,7 @@ export default function App() {
 
               {state.currentUser.role !== UserRole.ADMIN ? (
                 <button
-                  onClick={() => setShowDepositModal(true)}
+                  onClick={() => { setSyncWarning(null); setShowDepositModal(true); }}
                   className="w-full py-3.5 rounded-xl font-bold text-xs bg-emerald-500 hover:bg-emerald-400 text-slate-950 transition shadow-lg shadow-emerald-500/20"
                 >
                   Submit Deposit Confirmation
@@ -1242,7 +1290,7 @@ export default function App() {
                 </div>
 
                 <button
-                  onClick={() => setShowWithdrawModal(true)}
+                  onClick={() => { setSyncWarning(null); setShowWithdrawModal(true); }}
                   className="w-full py-3.5 rounded-xl font-bold text-xs bg-slate-800 hover:bg-slate-700 text-white border border-slate-700 transition"
                 >
                   Request Withdrawal
@@ -1377,13 +1425,24 @@ export default function App() {
         <div className="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
           <div className="bg-slate-900 border border-slate-800 w-full max-w-md rounded-3xl p-6 sm:p-8 space-y-5 shadow-2xl">
             {depositSuccess ? (
-              <SuccessCheckmark
-                title="Deposit Queued Successfully"
-                subtitle="Your crypto transfer has been recorded on the ledger. Platform auditors and node validators will credit your account once network confirmations complete."
-                amount={depositAmount}
-                currency={depositMethod}
-                onDone={handleCloseDepositSuccess}
-              />
+              <>
+                <SuccessCheckmark
+                  title="Deposit Queued Successfully"
+                  subtitle="Your crypto transfer has been recorded on the ledger. Platform auditors and node validators will credit your account once network confirmations complete."
+                  amount={depositAmount}
+                  currency={depositMethod}
+                  onDone={handleCloseDepositSuccess}
+                />
+                {syncWarning && (
+                  <div className="mt-4 p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs leading-relaxed">
+                    <p className="font-bold mb-1">âš  Sync issue detected</p>
+                    <p>{syncWarning}</p>
+                    <p className="mt-1 text-rose-200/80">
+                      Please contact support and share this message so we can manually record your transaction.
+                    </p>
+                  </div>
+                )}
+              </>
             ) : (
               <>
                 <div className="flex items-center justify-between">
@@ -1543,6 +1602,16 @@ export default function App() {
 
               {withdrawError && (
                 <p className="text-rose-400 text-xs">{withdrawError}</p>
+              )}
+
+              {syncWarning && (
+                <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/30 text-rose-300 text-xs leading-relaxed">
+                  <p className="font-bold mb-1">âš  Sync issue detected</p>
+                  <p>{syncWarning}</p>
+                  <p className="mt-1 text-rose-200/80">
+                    Please contact support and share this message so we can manually record your transaction.
+                  </p>
+                </div>
               )}
             </div>
 
