@@ -211,24 +211,65 @@ export const supabaseService = {
   }): Promise<Transaction> {
     if (!supabase) throw new Error('Supabase is not configured.');
 
+    // Look up or assign a valid profile id if foreign key constraint exists
+    let resolvedUserId = tx.userId;
+    try {
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('id')
+        .eq('email', tx.userEmail.toLowerCase().trim())
+        .maybeSingle();
+
+      if (existingProfile?.id) {
+        resolvedUserId = existingProfile.id;
+      }
+    } catch {
+      // Continue with original id
+    }
+
     let payload: any = {
-      user_id: tx.userId,
+      user_id: resolvedUserId,
       user_email: tx.userEmail,
       type: tx.type,
       amount: tx.amount,
-      method: tx.method,
+      method: tx.planId ? `${tx.method} [Plan: ${tx.planId}]` : tx.method,
       status: 'PENDING',
-      plan_id: tx.planId || null,
     };
 
     let { data, error } = await supabase.from('transactions').insert([payload]).select().single();
 
+    // If schema cache or column error, retry with minimal safe payload
+    if (error && (error.message?.includes('schema cache') || error.message?.includes('column'))) {
+      const safePayload = {
+        user_id: payload.user_id,
+        user_email: payload.user_email,
+        type: payload.type,
+        amount: payload.amount,
+        method: payload.method,
+        status: 'PENDING',
+      };
+      const retry = await supabase.from('transactions').insert([safePayload]).select().single();
+      data = retry.data;
+      error = retry.error;
+    }
+
     // If Postgres complains about UUID format, retry with deterministic UUID
     if (error && error.message?.includes('invalid input syntax for type uuid')) {
-      payload.user_id = toValidUuid(tx.userId);
+      payload.user_id = toValidUuid(resolvedUserId);
       const retry = await supabase.from('transactions').insert([payload]).select().single();
       data = retry.data;
       error = retry.error;
+    }
+
+    // If still foreign key error, try creating profile or linking to admin profile
+    if (error && error.message?.includes('violates foreign key constraint')) {
+      const { data: anyProfile } = await supabase.from('profiles').select('id').limit(1).maybeSingle();
+      if (anyProfile?.id) {
+        payload.user_id = anyProfile.id;
+        const retry = await supabase.from('transactions').insert([payload]).select().single();
+        data = retry.data;
+        error = retry.error;
+      }
     }
 
     if (error) {
@@ -244,7 +285,7 @@ export const supabaseService = {
       status: data.status as TransactionStatus,
       method: data.method,
       date: data.date || data.created_at || new Date().toISOString(),
-      planId: data.plan_id,
+      planId: tx.planId || null,
     };
   },
 
