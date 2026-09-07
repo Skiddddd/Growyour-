@@ -10,6 +10,7 @@ interface LayoutProps {
   setActiveTab: (tab: string) => void;
   onOpenDeposit?: () => void;
   onOpenWithdraw?: () => void;
+  pendingCount?: number;
 }
 
 export const Layout: React.FC<LayoutProps> = ({
@@ -19,7 +20,8 @@ export const Layout: React.FC<LayoutProps> = ({
   activeTab,
   setActiveTab,
   onOpenDeposit,
-  onOpenWithdraw
+  onOpenWithdraw,
+  pendingCount = 0
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -138,18 +140,26 @@ export const Layout: React.FC<LayoutProps> = ({
                 </div>
                 {adminMenuItems.map((item) => {
                   const active = activeTab === item.id;
+                  const isTxItem = item.id === 'admin-tx';
                   return (
                     <button
                       key={item.id}
                       onClick={() => setActiveTab(item.id)}
-                      className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-sm font-medium transition ${
+                      className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition ${
                         active
                           ? 'bg-gradient-to-r from-cyan-500/20 to-emerald-500/10 text-cyan-300 border border-cyan-500/30 shadow-sm'
                           : 'text-slate-400 hover:text-slate-200 hover:bg-slate-900/60'
                       }`}
                     >
-                      <i className={`fas ${item.icon} w-4 text-center text-xs ${active ? 'text-cyan-400' : 'text-slate-500'}`}></i>
-                      <span>{item.label}</span>
+                      <div className="flex items-center gap-3">
+                        <i className={`fas ${item.icon} w-4 text-center text-xs ${active ? 'text-cyan-400' : 'text-slate-500'}`}></i>
+                        <span>{item.label}</span>
+                      </div>
+                      {isTxItem && pendingCount > 0 && (
+                        <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse">
+                          {pendingCount}
+                        </span>
+                      )}
                     </button>
                   );
                 })}
@@ -207,6 +217,7 @@ export const Layout: React.FC<LayoutProps> = ({
               </div>
               {adminMenuItems.map((item) => {
                 const active = activeTab === item.id;
+                const isTxItem = item.id === 'admin-tx';
                 return (
                   <button
                     key={item.id}
@@ -214,12 +225,19 @@ export const Layout: React.FC<LayoutProps> = ({
                       setActiveTab(item.id);
                       setMobileMenuOpen(false);
                     }}
-                    className={`w-full flex items-center gap-3 px-3 py-2 rounded-lg text-sm ${
+                    className={`w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm ${
                       active ? 'bg-cyan-500/20 text-cyan-300 font-bold' : 'text-slate-400'
                     }`}
                   >
-                    <i className={`fas ${item.icon} w-4 text-center text-xs`}></i>
-                    <span>{item.label}</span>
+                    <div className="flex items-center gap-3">
+                      <i className={`fas ${item.icon} w-4 text-center text-xs`}></i>
+                      <span>{item.label}</span>
+                    </div>
+                    {isTxItem && pendingCount > 0 && (
+                      <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                        {pendingCount}
+                      </span>
+                    )}
                   </button>
                 );
               })}
