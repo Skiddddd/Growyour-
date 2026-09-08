@@ -461,11 +461,17 @@ export const AdminView: React.FC<AdminViewProps> = ({
               <div>
                 <label className="block text-xs font-semibold text-slate-300 mb-1.5">New Balance (USD)</label>
                 <input
-                  type="number"
-                  min="0"
-                  step="any"
+                  type="text"
+                  inputMode="decimal"
+                  pattern="[0-9]*\.?[0-9]*"
                   value={newBalance}
-                  onChange={(e) => setNewBalance(Number(e.target.value))}
+                  onFocus={(e) => e.target.select()}
+                  onChange={(e) => {
+                    const raw = e.target.value;
+                    if (raw === '' || /^\d*\.?\d*$/.test(raw)) {
+                      setNewBalance(raw === '' ? 0 : Number(raw));
+                    }
+                  }}
                   className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-white font-mono text-sm focus:border-cyan-400 outline-none"
                 />
               </div>
