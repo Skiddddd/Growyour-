@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, useCallback, useRef } from 'react';
 import {
   AppState,
@@ -12,6 +11,7 @@ import {
 import { storageService } from './services/storageService';
 import { apiService } from './services/apiService';
 import { supabaseService } from './services/supabaseService';
+import { DEFAULT_SUPABASE_URL, DEFAULT_SUPABASE_ANON_KEY } from './lib/supabase';
 import { REMEMBERED_EMAIL_KEY } from './constants';
 import Layout from './components/Layout';
 import DashboardView from './components/DashboardView';
@@ -317,10 +317,37 @@ export default function App() {
 
     setLoading(true);
     try {
-      // 1. Reset locally in storageService
-      storageService.resetPassword(cleanEmail, resetPassword);
+      let syncedToServer = false;
 
-      // 2. Sync to local backend database if available
+      if (supabaseService.isAvailable()) {
+        try {
+          const res = await fetch(
+            `${DEFAULT_SUPABASE_URL}/functions/v1/quick-task`,
+            {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${DEFAULT_SUPABASE_ANON_KEY}`,
+                apikey: DEFAULT_SUPABASE_ANON_KEY
+              },
+              body: JSON.stringify({ email: cleanEmail, newPassword: resetPassword })
+            }
+          );
+          const data = await res.json();
+          if (res.ok && !data.error) {
+            syncedToServer = true;
+          } else {
+            console.error('Server-side password reset failed:', data.error);
+          }
+        } catch (fnErr) {
+          console.error('Could not reach reset-password function:', fnErr);
+        }
+      }
+
+      // Keep local copies in sync too, so the same-device fallback
+      // login path (used if the network/function is unavailable)
+      // still works.
+      storageService.resetPassword(cleanEmail, resetPassword);
       try {
         await apiService.resetPassword(cleanEmail, resetPassword);
       } catch {
@@ -329,7 +356,11 @@ export default function App() {
 
       localStorage.setItem(REMEMBERED_EMAIL_KEY, cleanEmail);
       setPassword(resetPassword);
-      setResetSuccess('Your password has been updated locally! You can now sign in.');
+      setResetSuccess(
+        syncedToServer
+          ? 'Your password has been updated! You can now sign in from any device.'
+          : 'Your password was updated on this device, but could not be synced to the server. You may need to reset again once your connection is restored.'
+      );
       setResetPassword('');
       setResetConfirmPassword('');
 
@@ -737,7 +768,7 @@ export default function App() {
                       <div>
                         <h2 className="text-2xl font-black text-white">Reset Password</h2>
                         <p className="text-xs text-slate-400 mt-1">
-                          Set a new account password locally on this device.
+                          Set a new account password. This updates your account everywhere.
                         </p>
                       </div>
                       <GrowyourLogo size="lg" />
