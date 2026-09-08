@@ -798,7 +798,7 @@ export default function App() {
                           type="email"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
-                          placeholder="investor@nexus.io"
+                          placeholder="investor@gmail.com"
                           className="w-full bg-slate-900/80 border border-slate-700 focus:border-cyan-400 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none"
                         />
                       </div>
@@ -928,7 +928,7 @@ export default function App() {
                           type="email"
                           value={email}
                           onChange={(e) => setEmail(e.target.value)}
-                          placeholder="investor@nexus.io"
+                          placeholder="investor@gmail.com"
                           className="w-full bg-slate-900/80 border border-slate-700 focus:border-cyan-400 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none"
                         />
                       </div>
