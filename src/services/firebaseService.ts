@@ -91,7 +91,7 @@ function docToTransaction(id: string, t: any): Transaction {
     type: t.type as TransactionType,
     amount: Number(t.amount) || 0,
     status: t.status as TransactionStatus,
-    method: t.method || 'USDT',
+    method: t.method || 'SOL',
     date: toIso(t.date),
     planId: t.planId || null,
   };
@@ -350,7 +350,7 @@ export const firebaseService = {
         return {
           btcAddress: data.btcAddress || INITIAL_CONFIG.btcAddress,
           ethAddress: data.ethAddress || INITIAL_CONFIG.ethAddress,
-          usdtAddress: data.usdtAddress || INITIAL_CONFIG.usdtAddress,
+          solAddress: data.solAddress || INITIAL_CONFIG.solAddress,
         };
       }
     } catch {
@@ -366,7 +366,7 @@ export const firebaseService = {
       {
         btcAddress: config.btcAddress,
         ethAddress: config.ethAddress,
-        usdtAddress: config.usdtAddress,
+        solAddress: config.solAddress,
         updatedAt: new Date().toISOString(),
       },
       { merge: true }

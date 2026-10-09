@@ -28,7 +28,7 @@ export interface User {
   externalWallets?: {
     btc?: string;
     eth?: string;
-    usdt?: string;
+    sol?: string;
   };
   createdAt: string;
 }
@@ -59,7 +59,7 @@ export interface InvestmentPlan {
 export interface SystemConfig {
   btcAddress: string;
   ethAddress: string;
-  usdtAddress: string;
+  solAddress: string;
 }
 
 export interface AppState {

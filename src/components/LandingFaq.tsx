@@ -22,7 +22,7 @@ const FAQ_DATA: FaqItem[] = [
     category: 'Deposit Timelines',
     question: 'How long do crypto deposits take to arrive in my vault?',
     answer:
-      'Deposits via Bitcoin (BTC), Ethereum (ETH), and Tether (USDT ERC-20) require standard on-chain node confirmations (typically 1 to 3 network blocks, or 5–15 minutes). Once broadcast to the designated custodial address and verified by node operators, your capital balance updates immediately on your dashboard.',
+      'Deposits via Bitcoin (BTC), Ethereum (ETH), and Solana (SOL) require standard on-chain node confirmations (typically 1 to 3 network blocks, or 5–15 minutes). Once broadcast to the designated custodial address and verified by node operators, your capital balance updates immediately on your dashboard.',
     badgeColor: 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20'
   },
   {
@@ -46,7 +46,7 @@ const FAQ_DATA: FaqItem[] = [
     category: 'Minimums & Fees',
     question: 'What is the minimum deposit requirement, and are there hidden fees?',
     answer:
-      'Growyour$ welcomes investors starting at $50 (equivalent in BTC, ETH, or USDT). We maintain a 0% fee structure on inbound deposits. Outbound withdrawals include standard native blockchain network gas costs with zero hidden administrative markups.',
+      'Growyour$ welcomes investors starting at $50 (equivalent in BTC, ETH, or SOL). We maintain a 0% fee structure on inbound deposits. Outbound withdrawals include standard native blockchain network gas costs with zero hidden administrative markups.',
     badgeColor: 'text-blue-400 bg-blue-500/10 border-blue-500/20'
   }
 ];

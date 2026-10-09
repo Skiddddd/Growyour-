@@ -10,12 +10,12 @@
 6. Create the admin: sign up in the app, then in Firestore open
    `profiles/<that user's uid>` and set `role` to `ADMIN`.
 7. (Optional) Seed wallet addresses: create `system_config/main` with fields
-   `btcAddress`, `ethAddress`, `usdtAddress` (or just save them once from the admin panel).
+   `btcAddress`, `ethAddress`, `solAddress` (or just save them once from the admin panel).
 
 ## Data model
 - `profiles/{uid}`: email, fullName, role, balance, isActive, createdAt
 - `transactions/{autoId}`: userId, userEmail, type, amount, status, method, planId, date
-- `system_config/main`: btcAddress, ethAddress, usdtAddress
+- `system_config/main`: btcAddress, ethAddress, solAddress
 
 ## Account approval & support chat
 - New sign-ups are created with `accountStatus: PENDING` and cannot sign in until an admin

@@ -172,7 +172,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
               <i className="fas fa-sliders text-base"></i>
             </div>
             <h3 className="text-base font-bold text-white group-hover:text-purple-300 transition">System Custody Configuration</h3>
-            <p className="text-xs text-slate-400 mt-1">Update platform official deposit destination addresses for BTC, ETH, and USDT.</p>
+            <p className="text-xs text-slate-400 mt-1">Update platform official deposit destination addresses for BTC, ETH, and Solana (SOL).</p>
           </button>
         </div>
 
@@ -857,7 +857,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
         <div>
           <h1 className="text-2xl sm:text-3xl font-black text-white">Platform System Configuration</h1>
           <p className="text-sm text-slate-400 mt-1">
-            Configure official deposit destination wallet addresses for BTC, ETH, and USDT.
+            Configure official deposit destination wallet addresses for BTC, ETH, and Solana (SOL).
           </p>
         </div>
 
@@ -897,12 +897,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
           <div>
             <label className="block text-xs font-bold text-slate-300 uppercase tracking-wider mb-2">
-              <i className="fas fa-dollar-sign text-emerald-400 mr-2"></i>Tether (USDT - ERC20/TRC20) Address
+              <i className="fas fa-sun text-emerald-400 mr-2"></i>Solana (SOL) Address
             </label>
             <input
               type="text"
-              value={localConfig.usdtAddress}
-              onChange={(e) => setLocalConfig({ ...localConfig, usdtAddress: e.target.value })}
+              value={localConfig.solAddress || ''}
+              onChange={(e) => setLocalConfig({ ...localConfig, solAddress: e.target.value })}
               className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-3 text-white font-mono text-xs focus:border-cyan-400 outline-none"
               required
             />

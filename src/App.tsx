@@ -53,7 +53,7 @@ export default function App() {
 
   const [showDepositModal, setShowDepositModal] = useState(false);
   const [depositAmount, setDepositAmount] = useState<number>(1000);
-  const [depositMethod, setDepositMethod] = useState<'BTC' | 'ETH' | 'USDT'>('USDT');
+  const [depositMethod, setDepositMethod] = useState<'BTC' | 'ETH' | 'SOL'>('SOL');
   const [depositSuccess, setDepositSuccess] = useState(false);
   const [depositSubmitting, setDepositSubmitting] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
@@ -448,6 +448,16 @@ export default function App() {
   const handleDepositSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!state.currentUser || depositAmount <= 0 || depositSubmitting) return;
+    const depositAddress =
+      depositMethod === 'BTC'
+        ? state.systemConfig.btcAddress
+        : depositMethod === 'ETH'
+        ? state.systemConfig.ethAddress
+        : state.systemConfig.solAddress;
+    if (!depositAddress) {
+      setSyncWarning('The Solana deposit address has not been set up yet. Please contact support or choose another network.');
+      return;
+    }
 
     setDepositSubmitting(true);
     setSyncWarning(null);
@@ -1376,21 +1386,21 @@ export default function App() {
                   </div>
                 </div>
 
-                {/* USDT */}
+                {/* Solana */}
                 <div className="p-3.5 rounded-xl bg-slate-950 border border-slate-800 space-y-1">
                   <div className="flex items-center justify-between text-xs">
                     <span className="font-bold text-emerald-400 flex items-center gap-1.5">
-                      <i className="fas fa-dollar-sign"></i> Tether (USDT)
+                      <i className="fas fa-sun"></i> Solana (SOL)
                     </span>
                     <button
-                      onClick={() => copyToClipboard(state.systemConfig.usdtAddress, 'usdt')}
+                      onClick={() => copyToClipboard(state.systemConfig.solAddress || '', 'sol')}
                       className="text-[11px] text-cyan-400 hover:text-cyan-300 font-semibold"
                     >
-                      {copiedAddress === 'usdt' ? 'Copied!' : 'Copy'}
+                      {copiedAddress === 'sol' ? 'Copied!' : 'Copy'}
                     </button>
                   </div>
                   <div className="font-mono text-[11px] text-slate-300 break-all select-all">
-                    {state.systemConfig.usdtAddress}
+                    {state.systemConfig.solAddress || 'Not set yet. Please contact support.'}
                   </div>
                 </div>
               </div>
@@ -1636,7 +1646,7 @@ export default function App() {
                   <div>
                     <label className="block text-xs text-slate-400 mb-1.5">Asset Network</label>
                     <div className="grid grid-cols-3 gap-2">
-                      {(['USDT', 'BTC', 'ETH'] as const).map((m) => (
+                      {(['SOL', 'BTC', 'ETH'] as const).map((m) => (
                         <button
                           key={m}
                           type="button"
@@ -1661,7 +1671,7 @@ export default function App() {
                           ? state.systemConfig.btcAddress
                           : depositMethod === 'ETH'
                           ? state.systemConfig.ethAddress
-                          : state.systemConfig.usdtAddress}
+                          : state.systemConfig.solAddress || 'Not set yet. Please contact support.'}
                       </span>
                       <button
                         type="button"
@@ -1671,7 +1681,7 @@ export default function App() {
                               ? state.systemConfig.btcAddress
                               : depositMethod === 'ETH'
                               ? state.systemConfig.ethAddress
-                              : state.systemConfig.usdtAddress,
+                              : state.systemConfig.solAddress || '',
                             'modal'
                           )
                         }
