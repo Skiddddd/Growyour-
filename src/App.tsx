@@ -10,8 +10,7 @@ import {
 } from './types';
 import { storageService } from './services/storageService';
 import { apiService } from './services/apiService';
-import { supabaseService } from './services/supabaseService';
-import { DEFAULT_SUPABASE_URL, DEFAULT_SUPABASE_ANON_KEY } from './lib/supabase';
+import { firebaseService } from './services/firebaseService';
 import { REMEMBERED_EMAIL_KEY } from './constants';
 import Layout from './components/Layout';
 import DashboardView from './components/DashboardView';
@@ -52,7 +51,7 @@ export default function App() {
   const [depositSubmitting, setDepositSubmitting] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState<string | null>(null);
 
-  // Set when a transaction could not be written to the shared Supabase
+  // Set when a transaction could not be written to the shared Firebase
   // database and fell back to on-device storage only. When this happens the
   // transaction is invisible to the admin, so we surface it instead of
   // failing silently.
@@ -66,12 +65,12 @@ export default function App() {
     });
   }, []);
 
-  // Sync state from Supabase, server API, or fallback to local storage
+  // Sync state from Firebase, server API, or fallback to local storage
   const refreshState = useCallback(async () => {
     try {
-      // 1. Prioritize Supabase if configured
-      if (supabaseService.isAvailable()) {
-        const supaUser = await supabaseService.getCurrentUser().catch(() => null);
+      // 1. Prioritize Firebase if configured
+      if (firebaseService.isAvailable()) {
+        const supaUser = await firebaseService.getCurrentUser().catch(() => null);
         const localState = storageService.getState();
         const currentUser = supaUser || localState.currentUser;
 
@@ -82,12 +81,12 @@ export default function App() {
             currentUser.email?.toLowerCase() === 'admin@growyour.io';
 
           const [supaTxs, supaConfig, supaUsers] = await Promise.all([
-            supabaseService.getTransactions(currentUser.id, isAdmin, currentUser.email).catch(() => []),
-            supabaseService.getSystemConfig().catch(() => null),
-            isAdmin ? supabaseService.getUsers().catch(() => []) : Promise.resolve([])
+            firebaseService.getTransactions(currentUser.id, isAdmin, currentUser.email).catch(() => []),
+            firebaseService.getSystemConfig().catch(() => null),
+            isAdmin ? firebaseService.getUsers().catch(() => []) : Promise.resolve([])
           ]);
 
-          // Merge Supabase transactions with local ones seamlessly
+          // Merge Firebase transactions with local ones seamlessly
           const localTxs = localState.transactions || [];
           const mergedTxsMap = new Map<string, Transaction>();
 
@@ -193,9 +192,9 @@ export default function App() {
 
     try {
       if (isRegistering) {
-        if (supabaseService.isAvailable()) {
+        if (firebaseService.isAvailable()) {
           try {
-            const user = await supabaseService.signUp(name, email, password);
+            const user = await firebaseService.signUp(name, email, password);
             if (user) {
               localStorage.setItem(REMEMBERED_EMAIL_KEY, email);
               await refreshState();
@@ -203,13 +202,13 @@ export default function App() {
               return;
             }
           } catch (supaErr: any) {
-            console.error('Supabase sign-up failed:', supaErr);
+            console.error('Firebase sign-up failed:', supaErr);
             if (supaErr.message?.includes('already registered')) {
               setAuthError('An account with this email already exists. Try signing in.');
               setLoading(false);
               return;
             }
-            // Any other Supabase error means the account was NOT created on the
+            // Any other Firebase error means the account was NOT created on the
             // server. Show the real reason instead of silently creating a
             // local-only account that would never sync or appear for admin.
             setAuthError(
@@ -234,9 +233,9 @@ export default function App() {
           refreshState();
         }
       } else {
-        if (supabaseService.isAvailable()) {
+        if (firebaseService.isAvailable()) {
           try {
-            const user = await supabaseService.signIn(email, password);
+            const user = await firebaseService.signIn(email, password);
             if (user) {
               localStorage.setItem(REMEMBERED_EMAIL_KEY, email);
               await refreshState();
@@ -244,9 +243,9 @@ export default function App() {
               return;
             }
           } catch (supaErr: any) {
-            console.warn('Supabase sign-in note:', supaErr);
+            console.warn('Firebase sign-in note:', supaErr);
             if (supaErr.message?.includes('Email not confirmed')) {
-              setAuthError('Email not confirmed. Please check your inbox or disable "Confirm email" in Supabase Auth settings.');
+              setAuthError('Email not confirmed. Please check your inbox.');
               setLoading(false);
               return;
             }
@@ -306,6 +305,26 @@ export default function App() {
       setResetError('Please enter your account email address.');
       return;
     }
+    if (firebaseService.isAvailable()) {
+      setLoading(true);
+      try {
+        await firebaseService.sendPasswordReset(cleanEmail);
+        setResetSuccess(
+          'If an account exists for this email, a password reset link has been sent. Check your inbox (and spam folder).'
+        );
+        setTimeout(() => {
+          setIsResettingPassword(false);
+          setAuthError('');
+          setResetSuccess('');
+        }, 4000);
+      } catch (err: any) {
+        setResetError(err?.message || 'Unable to send reset email. Please try again.');
+      } finally {
+        setLoading(false);
+      }
+      return;
+    }
+
     if (!resetPassword || resetPassword.length < 6) {
       setResetError('New password must be at least 6 characters long.');
       return;
@@ -318,31 +337,6 @@ export default function App() {
     setLoading(true);
     try {
       let syncedToServer = false;
-
-      if (supabaseService.isAvailable()) {
-        try {
-          const res = await fetch(
-            `${DEFAULT_SUPABASE_URL}/functions/v1/quick-task`,
-            {
-              method: 'POST',
-              headers: {
-                'Content-Type': 'application/json',
-                Authorization: `Bearer ${DEFAULT_SUPABASE_ANON_KEY}`,
-                apikey: DEFAULT_SUPABASE_ANON_KEY
-              },
-              body: JSON.stringify({ email: cleanEmail, newPassword: resetPassword })
-            }
-          );
-          const data = await res.json();
-          if (res.ok && !data.error) {
-            syncedToServer = true;
-          } else {
-            console.error('Server-side password reset failed:', data.error);
-          }
-        } catch (fnErr) {
-          console.error('Could not reach reset-password function:', fnErr);
-        }
-      }
 
       // Keep local copies in sync too, so the same-device fallback
       // login path (used if the network/function is unavailable)
@@ -380,9 +374,9 @@ export default function App() {
     setPassword('Admin@123');
     setLoading(true);
     try {
-      if (supabaseService.isAvailable()) {
+      if (firebaseService.isAvailable()) {
         try {
-          await supabaseService.signIn(demoEmail, 'Admin@123');
+          await firebaseService.signIn(demoEmail, 'Admin@123');
           await refreshState();
           return;
         } catch {
@@ -399,8 +393,8 @@ export default function App() {
   };
 
   const handleLogout = async () => {
-    if (supabaseService.isAvailable()) {
-      await supabaseService.signOut().catch(() => {});
+    if (firebaseService.isAvailable()) {
+      await firebaseService.signOut().catch(() => {});
     }
     apiService.clearToken();
     storageService.logout();
@@ -423,23 +417,17 @@ export default function App() {
     setSyncWarning(null);
 
     try {
-      if (supabaseService.isAvailable()) {
+      if (firebaseService.isAvailable()) {
         try {
-          await supabaseService.createTransaction({
+          await firebaseService.createTransaction({
             userId: state.currentUser.id,
             userEmail: state.currentUser.email,
             type: TransactionType.DEPOSIT,
             amount: depositAmount,
             method: `${depositMethod} Network Transfer`
           });
-          storageService.createTransaction(
-            state.currentUser.id,
-            TransactionType.DEPOSIT,
-            depositAmount,
-            `${depositMethod} Transfer`
-          );
         } catch (err) {
-          console.error('Supabase deposit insert failed, saving locally only:', err);
+          console.error('Firebase deposit insert failed, saving locally only:', err);
           storageService.createTransaction(
             state.currentUser.id,
             TransactionType.DEPOSIT,
@@ -509,9 +497,9 @@ export default function App() {
 
     setSyncWarning(null);
 
-    if (supabaseService.isAvailable()) {
+    if (firebaseService.isAvailable()) {
       try {
-        await supabaseService.createTransaction({
+        await firebaseService.createTransaction({
           userId: state.currentUser.id,
           userEmail: state.currentUser.email,
           type: TransactionType.WITHDRAWAL,
@@ -519,7 +507,7 @@ export default function App() {
           method: `External: ${withdrawAddress.slice(0, 10)}...`
         });
       } catch (err) {
-        console.error('Supabase withdrawal insert failed, saving locally only:', err);
+        console.error('Firebase withdrawal insert failed, saving locally only:', err);
         storageService.createTransaction(
           state.currentUser.id,
           TransactionType.WITHDRAWAL,
@@ -568,9 +556,9 @@ export default function App() {
 
     setSyncWarning(null);
 
-    if (supabaseService.isAvailable()) {
+    if (firebaseService.isAvailable()) {
       try {
-        await supabaseService.createTransaction({
+        await firebaseService.createTransaction({
           userId: state.currentUser.id,
           userEmail: state.currentUser.email,
           type: TransactionType.INVESTMENT,
@@ -579,7 +567,7 @@ export default function App() {
           planId
         });
       } catch (err) {
-        console.error('Supabase investment insert failed, saving locally only:', err);
+        console.error('Firebase investment insert failed, saving locally only:', err);
         storageService.createTransaction(
           state.currentUser.id,
           TransactionType.INVESTMENT,
@@ -622,13 +610,17 @@ export default function App() {
 
   // Admin Actions
   const handleUpdateStatus = async (txId: string, status: TransactionStatus) => {
-    if (supabaseService.isAvailable()) {
+    // Transactions created offline have local ids ("tx_..."); everything else lives on the server.
+    const isLocalOnly = txId.startsWith('tx_');
+    if (firebaseService.isAvailable() && !isLocalOnly) {
       try {
-        await supabaseService.updateTransactionStatus(txId, status);
+        await firebaseService.updateTransactionStatus(txId, status);
       } catch (err) {
-        console.warn('Supabase tx update error:', err);
-        storageService.updateTransactionStatus(txId, status);
+        console.error('Firebase tx update error:', err);
+        alert(`Could not update this transaction: ${err instanceof Error ? err.message : String(err)}`);
       }
+    } else if (firebaseService.isAvailable()) {
+      storageService.updateTransactionStatus(txId, status);
     } else {
       try {
         await apiService.adminUpdateTransaction(txId, status);
@@ -640,9 +632,9 @@ export default function App() {
   };
 
   const handleSetUserBalance = async (userId: string, nextBalance: number) => {
-    if (supabaseService.isAvailable()) {
+    if (firebaseService.isAvailable()) {
       try {
-        await supabaseService.updateUser(userId, { balance: nextBalance });
+        await firebaseService.updateUser(userId, { balance: nextBalance });
       } catch {
         storageService.setUserBalance(userId, nextBalance);
       }
@@ -657,9 +649,9 @@ export default function App() {
   };
 
   const handleUpdateConfig = async (config: SystemConfig) => {
-    if (supabaseService.isAvailable()) {
+    if (firebaseService.isAvailable()) {
       try {
-        await supabaseService.updateSystemConfig(config);
+        await firebaseService.updateSystemConfig(config);
       } catch {
         storageService.updateSystemConfig(config);
       }
@@ -768,7 +760,9 @@ export default function App() {
                       <div>
                         <h2 className="text-2xl font-black text-white">Reset Password</h2>
                         <p className="text-xs text-slate-400 mt-1">
-                          Set a new account password. This updates your account everywhere.
+                          {firebaseService.isAvailable()
+                            ? "Enter your account email and we'll send you a secure link to reset your password."
+                            : 'Set a new account password. This updates your account everywhere.'}
                         </p>
                       </div>
                       <GrowyourLogo size="lg" />
@@ -803,6 +797,8 @@ export default function App() {
                         />
                       </div>
 
+                      {!firebaseService.isAvailable() && (
+                        <>
                       <div>
                         <label className="block text-xs font-semibold text-slate-300 mb-1.5">
                           New Password
@@ -851,6 +847,9 @@ export default function App() {
                         </div>
                       </div>
 
+                        </>
+                      )}
+
                       <button
                         type="submit"
                         disabled={loading}
@@ -859,7 +858,7 @@ export default function App() {
                         {loading ? (
                           <span className="w-5 h-5 border-2 border-slate-950/30 border-t-slate-950 rounded-full animate-spin"></span>
                         ) : (
-                          <span>Reset Password</span>
+                          <span>{firebaseService.isAvailable() ? "Send Reset Link" : "Reset Password"}</span>
                         )}
                       </button>
                     </form>
