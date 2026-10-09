@@ -6,7 +6,9 @@ import {
   UserRole,
   SystemConfig,
   User,
-  Transaction
+  Transaction,
+  SupportMessage,
+  AccountStatus
 } from './types';
 import { storageService } from './services/storageService';
 import { apiService } from './services/apiService';
@@ -16,6 +18,8 @@ import Layout from './components/Layout';
 import DashboardView from './components/DashboardView';
 import InvestView from './components/InvestView';
 import AdminView from './components/AdminView';
+import SupportChat from './components/SupportChat';
+import AdminSupport from './components/AdminSupport';
 import LandingFaq from './components/LandingFaq';
 import GrowyourLogo from './components/GrowyourLogo';
 import SuccessCheckmark from './components/SuccessCheckmark';
@@ -37,6 +41,9 @@ export default function App() {
   const [resetError, setResetError] = useState('');
   const [loading, setLoading] = useState(false);
   const [authError, setAuthError] = useState('');
+  const [authNotice, setAuthNotice] = useState('');
+  const [supportMessages, setSupportMessages] = useState<SupportMessage[]>([]);
+  const [supportError, setSupportError] = useState(false);
 
   // Modals
   const [showWithdrawModal, setShowWithdrawModal] = useState(false);
@@ -184,11 +191,29 @@ export default function App() {
     return () => clearInterval(interval);
   }, [refreshState]);
 
+  // Live customer-support chat: admins listen to every thread, users to their own.
+  const supportUserId = state.currentUser?.id;
+  const supportRole = state.currentUser?.role;
+  useEffect(() => {
+    if (!supportUserId || !firebaseService.isAvailable()) {
+      setSupportMessages([]);
+      return;
+    }
+    setSupportError(false);
+    const unsubscribe = firebaseService.subscribeSupportMessages(
+      supportRole === UserRole.ADMIN ? null : supportUserId,
+      setSupportMessages,
+      () => setSupportError(true)
+    );
+    return unsubscribe;
+  }, [supportUserId, supportRole]);
+
   // Handle Authentication
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setAuthError('');
+    setAuthNotice('');
 
     try {
       if (isRegistering) {
@@ -197,6 +222,16 @@ export default function App() {
             const user = await firebaseService.signUp(name, email, password);
             if (user) {
               localStorage.setItem(REMEMBERED_EMAIL_KEY, email);
+              if (user.accountStatus === 'PENDING') {
+                // New accounts wait for admin approval before they can sign in.
+                setIsRegistering(false);
+                setPassword('');
+                setAuthNotice(
+                  'Account created! It is now pending review. You will be able to sign in once an admin approves it.'
+                );
+                setLoading(false);
+                return;
+              }
               await refreshState();
               setLoading(false);
               return;
@@ -399,6 +434,7 @@ export default function App() {
     apiService.clearToken();
     storageService.logout();
     setState((prev) => ({ ...prev, currentUser: null }));
+    setSupportMessages([]);
     setActiveTab('dashboard');
   };
 
@@ -629,6 +665,38 @@ export default function App() {
       }
     }
     await refreshState();
+  };
+
+  const handleSetAccountStatus = async (userId: string, status: AccountStatus) => {
+    try {
+      await firebaseService.updateUser(userId, { accountStatus: status });
+    } catch (err) {
+      console.error('Account status update error:', err);
+      alert(`Could not update this account: ${err instanceof Error ? err.message : String(err)}`);
+    }
+    await refreshState();
+  };
+
+  const handleSendSupport = async (text: string) => {
+    if (!state.currentUser) return;
+    await firebaseService.sendSupportMessage({
+      userId: state.currentUser.id,
+      userEmail: state.currentUser.email,
+      userName: state.currentUser.fullName,
+      sender: 'USER',
+      text
+    });
+  };
+
+  const handleAdminReply = async (
+    target: { userId: string; userEmail: string; userName: string },
+    text: string
+  ) => {
+    await firebaseService.sendSupportMessage({ ...target, sender: 'ADMIN', text });
+  };
+
+  const handleMarkSupportRead = (field: 'readByAdmin' | 'readByUser') => (ids: string[]) => {
+    firebaseService.markSupportRead(ids, field).catch((err) => console.warn('Mark read failed:', err));
   };
 
   const handleSetUserBalance = async (userId: string, nextBalance: number) => {
@@ -901,6 +969,13 @@ export default function App() {
                       </div>
                     )}
 
+                    {authNotice && (
+                      <div className="mb-4 p-3 rounded-xl bg-emerald-500/15 border border-emerald-500/30 text-emerald-300 text-xs flex items-center gap-2">
+                        <i className="fas fa-circle-check"></i>
+                        <span>{authNotice}</span>
+                      </div>
+                    )}
+
                     <form onSubmit={handleAuth} className="space-y-4">
                       {isRegistering && (
                         <div>
@@ -1052,6 +1127,12 @@ export default function App() {
   // Authenticated Portal
   const isCurrentAdmin = state.currentUser?.role === UserRole.ADMIN;
   const pendingTxCount = state.transactions.filter((t) => t.status === TransactionStatus.PENDING).length;
+  const pendingUserCount = state.users.filter(
+    (u) => u.role !== UserRole.ADMIN && u.accountStatus === 'PENDING'
+  ).length;
+  const supportUnread = isCurrentAdmin
+    ? new Set(supportMessages.filter((m) => m.sender === 'USER' && !m.readByAdmin).map((m) => m.userId)).size
+    : supportMessages.filter((m) => m.sender === 'ADMIN' && !m.readByUser).length;
 
   return (
     <Layout
@@ -1062,6 +1143,8 @@ export default function App() {
       onOpenDeposit={() => { setSyncWarning(null); setShowDepositModal(true); }}
       onOpenWithdraw={() => { setSyncWarning(null); setShowWithdrawModal(true); }}
       pendingCount={pendingTxCount}
+      pendingUserCount={pendingUserCount}
+      supportUnread={supportUnread}
     >
       {/* 1. Dashboard View */}
       {activeTab === 'dashboard' && (
@@ -1433,15 +1516,34 @@ export default function App() {
         </div>
       )}
 
+      {/* Customer support chat (investors) */}
+      {activeTab === 'support' && !isCurrentAdmin && (
+        <SupportChat
+          messages={supportMessages}
+          available={firebaseService.isAvailable() && !supportError}
+          onSend={handleSendSupport}
+          onMarkRead={handleMarkSupportRead('readByUser')}
+        />
+      )}
+
       {/* 5. Admin Panel Tabs (Protected) */}
       {state.currentUser.role === UserRole.ADMIN && (
         <>
+          {activeTab === 'admin-support' && (
+            <AdminSupport
+              messages={supportMessages}
+              users={state.users}
+              onSend={handleAdminReply}
+              onMarkRead={handleMarkSupportRead('readByAdmin')}
+            />
+          )}
           {activeTab === 'admin-overview' && (
             <AdminView
               users={state.users}
               transactions={state.transactions}
               onUpdateStatus={handleUpdateStatus}
               onSetUserBalance={handleSetUserBalance}
+              onSetAccountStatus={handleSetAccountStatus}
               systemConfig={state.systemConfig}
               onUpdateConfig={handleUpdateConfig}
               view="overview"
@@ -1454,6 +1556,7 @@ export default function App() {
               transactions={state.transactions}
               onUpdateStatus={handleUpdateStatus}
               onSetUserBalance={handleSetUserBalance}
+              onSetAccountStatus={handleSetAccountStatus}
               systemConfig={state.systemConfig}
               onUpdateConfig={handleUpdateConfig}
               view="users"
@@ -1466,6 +1569,7 @@ export default function App() {
               transactions={state.transactions}
               onUpdateStatus={handleUpdateStatus}
               onSetUserBalance={handleSetUserBalance}
+              onSetAccountStatus={handleSetAccountStatus}
               systemConfig={state.systemConfig}
               onUpdateConfig={handleUpdateConfig}
               view="tx"
@@ -1478,6 +1582,7 @@ export default function App() {
               transactions={state.transactions}
               onUpdateStatus={handleUpdateStatus}
               onSetUserBalance={handleSetUserBalance}
+              onSetAccountStatus={handleSetAccountStatus}
               systemConfig={state.systemConfig}
               onUpdateConfig={handleUpdateConfig}
               view="settings"

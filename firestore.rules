@@ -6,23 +6,40 @@ service cloud.firestore {
       return request.auth != null;
     }
 
-    function isAdmin() {
+    function myProfile() {
+      return get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data;
+    }
+
+    function hasProfile() {
       return signedIn()
-        && exists(/databases/$(database)/documents/profiles/$(request.auth.uid))
-        && get(/databases/$(database)/documents/profiles/$(request.auth.uid)).data.role == 'ADMIN';
+        && exists(/databases/$(database)/documents/profiles/$(request.auth.uid));
+    }
+
+    function isAdmin() {
+      return hasProfile() && myProfile().role == 'ADMIN';
+    }
+
+    // Admins, plus users whose account has been approved (accounts that
+    // pre-date the approval feature have no status and count as approved).
+    function isApproved() {
+      return hasProfile()
+        && (myProfile().role == 'ADMIN'
+            || myProfile().get('accountStatus', 'APPROVED') == 'APPROVED');
     }
 
     // User profiles
     match /profiles/{uid} {
       allow read: if signedIn() && (request.auth.uid == uid || isAdmin());
 
-      // Users may only create their own profile as a plain USER with zero balance.
+      // Users may only create their own profile as a plain USER, zero balance,
+      // and PENDING until an admin approves it.
       allow create: if signedIn()
         && request.auth.uid == uid
         && request.resource.data.role == 'USER'
-        && request.resource.data.balance == 0;
+        && request.resource.data.balance == 0
+        && request.resource.data.accountStatus == 'PENDING';
 
-      // Only admins can change role/balance/active state.
+      // Only admins can change role/balance/status.
       allow update: if isAdmin();
       allow delete: if false;
     }
@@ -31,13 +48,36 @@ service cloud.firestore {
     match /transactions/{txId} {
       allow read: if signedIn() && (resource.data.userId == request.auth.uid || isAdmin());
 
-      allow create: if signedIn()
+      allow create: if isApproved()
         && request.resource.data.userId == request.auth.uid
         && request.resource.data.status == 'PENDING'
         && request.resource.data.amount is number
         && request.resource.data.amount > 0;
 
       allow update: if isAdmin();
+      allow delete: if false;
+    }
+
+    // Customer support chat
+    match /support_messages/{msgId} {
+      allow read: if signedIn() && (resource.data.userId == request.auth.uid || isAdmin());
+
+      allow create: if isApproved()
+        && request.resource.data.text is string
+        && request.resource.data.text.size() > 0
+        && request.resource.data.text.size() <= 1000
+        && (
+          (request.resource.data.userId == request.auth.uid
+            && request.resource.data.sender == 'USER')
+          || (isAdmin() && request.resource.data.sender == 'ADMIN')
+        );
+
+      // Admins can mark anything read; users may only flip their own readByUser flag.
+      allow update: if isAdmin()
+        || (signedIn()
+            && resource.data.userId == request.auth.uid
+            && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readByUser']));
+
       allow delete: if false;
     }
 
