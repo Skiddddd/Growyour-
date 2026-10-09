@@ -16,3 +16,13 @@
 - `profiles/{uid}`: email, fullName, role, balance, isActive, createdAt
 - `transactions/{autoId}`: userId, userEmail, type, amount, status, method, planId, date
 - `system_config/main`: btcAddress, ethAddress, usdtAddress
+
+## Account approval & support chat
+- New sign-ups are created with `accountStatus: PENDING` and cannot sign in until an admin
+  approves them in **User Directory** (Approve / Reject buttons). Admins and older accounts
+  without a status are treated as approved.
+- Customer support chat uses the `support_messages` collection. Users chat from
+  **Customer Support**, admins reply from **Support Inbox**.
+- After updating, re-publish `firestore.rules` (Firestore -> Rules -> paste -> Publish).
+- To create the first admin: sign up, then in Firestore set the profile's `role` to `ADMIN`
+  (admins are always allowed to sign in, even if the status still says PENDING).

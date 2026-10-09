@@ -1,11 +1,12 @@
 import React, { useState } from 'react';
-import { User, Transaction, TransactionStatus, SystemConfig, UserRole, TransactionType } from '../types';
+import { User, Transaction, TransactionStatus, SystemConfig, UserRole, TransactionType, AccountStatus } from '../types';
 
 interface AdminViewProps {
   users: User[];
   transactions: Transaction[];
   onUpdateStatus: (txId: string, status: TransactionStatus) => void;
   onSetUserBalance: (userId: string, nextBalance: number) => void;
+  onSetAccountStatus?: (userId: string, status: AccountStatus) => void;
   systemConfig: SystemConfig;
   onUpdateConfig: (config: SystemConfig) => void;
   view: 'overview' | 'users' | 'tx' | 'settings';
@@ -17,6 +18,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
   transactions,
   onUpdateStatus,
   onSetUserBalance,
+  onSetAccountStatus,
   systemConfig,
   onUpdateConfig,
   view,
@@ -306,7 +308,49 @@ export const AdminView: React.FC<AdminViewProps> = ({
         (u.fullName && u.fullName.toLowerCase().includes(q)) ||
         u.role.toLowerCase().includes(q)
       );
+    }).sort((a, b) => {
+      const pa = a.accountStatus === 'PENDING' ? 0 : 1;
+      const pb = b.accountStatus === 'PENDING' ? 0 : 1;
+      return pa - pb;
     });
+    const pendingAccounts = users.filter((u) => u.role !== UserRole.ADMIN && u.accountStatus === 'PENDING').length;
+
+    const statusBadge = (u: User) => {
+      if (u.role === UserRole.ADMIN || !u.accountStatus || u.accountStatus === 'APPROVED') return null;
+      const cls =
+        u.accountStatus === 'PENDING'
+          ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
+          : 'bg-rose-500/20 text-rose-300 border border-rose-500/40';
+      return (
+        <span className={`ml-2 px-2 py-0.5 rounded text-[10px] font-bold ${cls}`}>
+          {u.accountStatus === 'PENDING' ? 'PENDING APPROVAL' : 'REJECTED'}
+        </span>
+      );
+    };
+
+    const approvalButtons = (u: User, block: boolean) => {
+      if (!onSetAccountStatus || u.role === UserRole.ADMIN) return null;
+      const status = u.accountStatus || 'APPROVED';
+      if (status === 'APPROVED') return null;
+      return (
+        <div className={block ? 'grid grid-cols-2 gap-2' : 'inline-flex gap-2 mr-2'}>
+          <button
+            onClick={() => onSetAccountStatus(u.id, 'APPROVED')}
+            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 transition"
+          >
+            <i className="fas fa-check mr-1.5 text-[10px]"></i>Approve
+          </button>
+          {status === 'PENDING' && (
+            <button
+              onClick={() => onSetAccountStatus(u.id, 'REJECTED')}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold bg-rose-500/15 hover:bg-rose-500/25 text-rose-300 border border-rose-500/30 transition"
+            >
+              <i className="fas fa-times mr-1.5 text-[10px]"></i>Reject
+            </button>
+          )}
+        </div>
+      );
+    };
 
     return (
       <div className="space-y-6">
@@ -329,6 +373,15 @@ export const AdminView: React.FC<AdminViewProps> = ({
           </div>
         </div>
 
+        {pendingAccounts > 0 && (
+          <div className="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-200 text-xs flex items-center gap-2">
+            <i className="fas fa-user-clock"></i>
+            <span>
+              {pendingAccounts} new account{pendingAccounts > 1 ? 's are' : ' is'} waiting for your approval. They cannot sign in until approved.
+            </span>
+          </div>
+        )}
+
         <div className="p-4 sm:p-6 rounded-2xl bg-slate-900 border border-slate-800">
           {/* Desktop Table View */}
           <div className="hidden md:block overflow-x-auto">
@@ -346,7 +399,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
               <tbody className="divide-y divide-slate-800/80 text-slate-300">
                 {filteredUsers.map((u) => (
                   <tr key={u.id} className="hover:bg-slate-800/30">
-                    <td className="py-3 px-3 font-semibold text-white">{u.fullName || 'User'}</td>
+                    <td className="py-3 px-3 font-semibold text-white">{u.fullName || 'User'}{statusBadge(u)}</td>
                     <td className="py-3 px-3 text-slate-300 font-mono">{u.email}</td>
                     <td className="py-3 px-3">
                       <span
@@ -362,6 +415,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                     <td className="py-3 px-3 font-mono font-bold text-emerald-400">${u.balance.toLocaleString()}</td>
                     <td className="py-3 px-3 text-slate-400">{new Date(u.createdAt).toLocaleDateString()}</td>
                     <td className="py-3 px-3 text-right">
+                      {approvalButtons(u, false)}
                       <button
                         onClick={() => {
                           setEditingUser(u);
@@ -392,7 +446,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
               <div key={u.id} className="p-4 rounded-xl bg-slate-950/80 border border-slate-800/80 space-y-3">
                 <div className="flex items-start justify-between gap-2">
                   <div>
-                    <div className="font-bold text-white text-sm">{u.fullName || 'Platform User'}</div>
+                    <div className="font-bold text-white text-sm">{u.fullName || 'Platform User'}{statusBadge(u)}</div>
                     <div className="text-xs text-slate-400 font-mono break-all">{u.email}</div>
                   </div>
                   <span
@@ -417,6 +471,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   <span>Registered</span>
                   <span>{new Date(u.createdAt).toLocaleDateString()}</span>
                 </div>
+
+                {approvalButtons(u, true)}
 
                 <button
                   onClick={() => {

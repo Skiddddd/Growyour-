@@ -11,6 +11,8 @@ interface LayoutProps {
   onOpenDeposit?: () => void;
   onOpenWithdraw?: () => void;
   pendingCount?: number;
+  pendingUserCount?: number;
+  supportUnread?: number;
 }
 
 export const Layout: React.FC<LayoutProps> = ({
@@ -21,7 +23,9 @@ export const Layout: React.FC<LayoutProps> = ({
   setActiveTab,
   onOpenDeposit,
   onOpenWithdraw,
-  pendingCount = 0
+  pendingCount = 0,
+  pendingUserCount = 0,
+  supportUnread = 0
 }) => {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
@@ -33,17 +37,26 @@ export const Layout: React.FC<LayoutProps> = ({
     { id: 'dashboard', label: 'Dashboard', icon: 'fa-chart-pie' },
     { id: 'invest', label: 'Invest Plans', icon: 'fa-rocket' },
     { id: 'transactions', label: 'Ledger History', icon: 'fa-list-check' },
-    { id: 'wallet', label: 'Wallet & Fund', icon: 'fa-wallet' }
+    { id: 'wallet', label: 'Wallet & Fund', icon: 'fa-wallet' },
+    { id: 'support', label: 'Customer Support', icon: 'fa-headset' }
   ];
 
   const adminMenuItems = [
     { id: 'admin-overview', label: 'Admin Overview', icon: 'fa-shield-halved' },
     { id: 'admin-users', label: 'User Directory', icon: 'fa-users' },
     { id: 'admin-tx', label: 'TX Approvals', icon: 'fa-clipboard-check' },
+    { id: 'admin-support', label: 'Support Inbox', icon: 'fa-headset' },
     { id: 'admin-settings', label: 'System Config', icon: 'fa-sliders' }
   ];
 
-  const filteredUserItems = isAdmin ? userMenuItems.filter((item) => item.id !== 'invest') : userMenuItems;
+  const filteredUserItems = isAdmin ? userMenuItems.filter((item) => item.id !== 'invest' && item.id !== 'support') : userMenuItems;
+
+  const badgeFor = (id: string): number => {
+    if (id === 'admin-tx') return pendingCount;
+    if (id === 'admin-users') return pendingUserCount;
+    if (id === 'support' || id === 'admin-support') return supportUnread;
+    return 0;
+  };
   const items = isAdmin ? [...filteredUserItems, ...adminMenuItems] : userMenuItems;
 
   return (
@@ -128,6 +141,11 @@ export const Layout: React.FC<LayoutProps> = ({
                 >
                   <i className={`fas ${item.icon} w-4 text-center text-xs ${active ? 'text-cyan-400' : 'text-slate-500'}`}></i>
                   <span>{item.label}</span>
+                  {badgeFor(item.id) > 0 && (
+                    <span className="ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse">
+                      {badgeFor(item.id)}
+                    </span>
+                  )}
                 </button>
               );
             })}
@@ -140,7 +158,6 @@ export const Layout: React.FC<LayoutProps> = ({
                 </div>
                 {adminMenuItems.map((item) => {
                   const active = activeTab === item.id;
-                  const isTxItem = item.id === 'admin-tx';
                   return (
                     <button
                       key={item.id}
@@ -155,9 +172,9 @@ export const Layout: React.FC<LayoutProps> = ({
                         <i className={`fas ${item.icon} w-4 text-center text-xs ${active ? 'text-cyan-400' : 'text-slate-500'}`}></i>
                         <span>{item.label}</span>
                       </div>
-                      {isTxItem && pendingCount > 0 && (
+                      {badgeFor(item.id) > 0 && (
                         <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 animate-pulse">
-                          {pendingCount}
+                          {badgeFor(item.id)}
                         </span>
                       )}
                     </button>
@@ -205,6 +222,11 @@ export const Layout: React.FC<LayoutProps> = ({
               >
                 <i className={`fas ${item.icon} w-4 text-center text-xs`}></i>
                 <span>{item.label}</span>
+                {badgeFor(item.id) > 0 && (
+                  <span className="ml-auto px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
+                    {badgeFor(item.id)}
+                  </span>
+                )}
               </button>
             );
           })}
@@ -217,7 +239,6 @@ export const Layout: React.FC<LayoutProps> = ({
               </div>
               {adminMenuItems.map((item) => {
                 const active = activeTab === item.id;
-                const isTxItem = item.id === 'admin-tx';
                 return (
                   <button
                     key={item.id}
@@ -233,9 +254,9 @@ export const Layout: React.FC<LayoutProps> = ({
                       <i className={`fas ${item.icon} w-4 text-center text-xs`}></i>
                       <span>{item.label}</span>
                     </div>
-                    {isTxItem && pendingCount > 0 && (
+                    {badgeFor(item.id) > 0 && (
                       <span className="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40">
-                        {pendingCount}
+                        {badgeFor(item.id)}
                       </span>
                     )}
                   </button>

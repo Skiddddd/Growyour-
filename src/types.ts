@@ -15,6 +15,8 @@ export enum TransactionType {
   INVESTMENT = 'INVESTMENT'
 }
 
+export type AccountStatus = 'PENDING' | 'APPROVED' | 'REJECTED';
+
 export interface User {
   id: string;
   email: string;
@@ -22,6 +24,7 @@ export interface User {
   balance: number;
   role: UserRole;
   isActive?: boolean;
+  accountStatus?: AccountStatus;
   externalWallets?: {
     btc?: string;
     eth?: string;
@@ -65,4 +68,16 @@ export interface AppState {
   transactions: Transaction[];
   plans: InvestmentPlan[];
   systemConfig: SystemConfig;
+}
+
+export interface SupportMessage {
+  id: string;
+  userId: string;
+  userEmail: string;
+  userName: string;
+  sender: 'USER' | 'ADMIN';
+  text: string;
+  createdAt: string;
+  readByAdmin: boolean;
+  readByUser: boolean;
 }

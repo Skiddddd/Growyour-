@@ -16,15 +16,27 @@ import {
   query,
   where,
   runTransaction,
+  onSnapshot,
+  writeBatch,
 } from 'firebase/firestore';
 import { auth, db, isFirebaseConfigured } from '../lib/firebase';
-import { User, UserRole, Transaction, TransactionStatus, TransactionType, SystemConfig } from '../types';
+import { User, UserRole, Transaction, TransactionStatus, TransactionType, SystemConfig, SupportMessage, AccountStatus } from '../types';
 import { INITIAL_CONFIG } from '../constants';
 
 const PROFILES = 'profiles';
 const TRANSACTIONS = 'transactions';
 const CONFIG_COLLECTION = 'system_config';
 const CONFIG_DOC = 'main';
+const SUPPORT = 'support_messages';
+
+// True while a sign-up is in progress, so background session checks don't
+// react to the half-created account.
+let signingUp = false;
+
+export const PENDING_MESSAGE =
+  'Your account is awaiting admin approval. You will be able to sign in once it has been approved.';
+export const REJECTED_MESSAGE =
+  'Your account application was not approved. Please contact support if you think this is a mistake.';
 
 // Translate Firebase auth error codes into the messages the UI already checks for.
 function friendlyAuthError(err: any): Error {
@@ -66,6 +78,7 @@ function profileToUser(uid: string, p: any, fbUser?: FirebaseUser | null, fallba
     balance: Number(p?.balance) || 0,
     role: p?.role === 'ADMIN' ? UserRole.ADMIN : UserRole.USER,
     isActive: p?.isActive ?? true,
+    accountStatus: (p?.accountStatus as AccountStatus) || 'APPROVED',
     createdAt: toIso(p?.createdAt || fbUser?.metadata?.creationTime),
   };
 }
@@ -81,6 +94,20 @@ function docToTransaction(id: string, t: any): Transaction {
     method: t.method || 'USDT',
     date: toIso(t.date),
     planId: t.planId || null,
+  };
+}
+
+function docToSupport(id: string, m: any): SupportMessage {
+  return {
+    id,
+    userId: m.userId,
+    userEmail: m.userEmail || '',
+    userName: m.userName || '',
+    sender: m.sender === 'ADMIN' ? 'ADMIN' : 'USER',
+    text: m.text || '',
+    createdAt: toIso(m.createdAt),
+    readByAdmin: Boolean(m.readByAdmin),
+    readByUser: Boolean(m.readByUser),
   };
 }
 
@@ -100,34 +127,43 @@ export const firebaseService = {
     const cleanName = fullName.trim() || cleanEmail.split('@')[0];
     const pass = password || 'Default@123';
 
-    let fbUser: FirebaseUser;
+    signingUp = true;
     try {
-      const cred = await createUserWithEmailAndPassword(auth, cleanEmail, pass);
-      fbUser = cred.user;
-    } catch (err) {
-      throw friendlyAuthError(err);
+      let fbUser: FirebaseUser;
+      try {
+        const cred = await createUserWithEmailAndPassword(auth, cleanEmail, pass);
+        fbUser = cred.user;
+      } catch (err) {
+        throw friendlyAuthError(err);
+      }
+
+      // New accounts always start as PENDING until an admin approves them.
+      const createdAt = new Date().toISOString();
+      await setDoc(doc(db, PROFILES, fbUser.uid), {
+        email: cleanEmail,
+        fullName: cleanName,
+        role: 'USER',
+        balance: 0,
+        isActive: true,
+        accountStatus: 'PENDING',
+        createdAt,
+      });
+
+      return {
+        id: fbUser.uid,
+        email: cleanEmail,
+        fullName: cleanName,
+        balance: 0,
+        role: UserRole.USER,
+        isActive: true,
+        accountStatus: 'PENDING',
+        createdAt,
+      };
+    } finally {
+      // Never leave a pending account signed in.
+      if (auth.currentUser) await fbSignOut(auth).catch(() => {});
+      signingUp = false;
     }
-
-    // Create the profile document (role is always USER here; admins are promoted manually).
-    const createdAt = new Date().toISOString();
-    await setDoc(doc(db, PROFILES, fbUser.uid), {
-      email: cleanEmail,
-      fullName: cleanName,
-      role: 'USER',
-      balance: 0,
-      isActive: true,
-      createdAt,
-    });
-
-    return {
-      id: fbUser.uid,
-      email: cleanEmail,
-      fullName: cleanName,
-      balance: 0,
-      role: UserRole.USER,
-      isActive: true,
-      createdAt,
-    };
   },
 
   async signIn(email: string, password?: string): Promise<User> {
@@ -154,6 +190,7 @@ export const firebaseService = {
         role: 'USER',
         balance: 0,
         isActive: true,
+        accountStatus: 'PENDING',
         createdAt: new Date().toISOString(),
       };
       try {
@@ -164,7 +201,12 @@ export const firebaseService = {
       }
     }
 
-    return profileToUser(fbUser.uid, profile, fbUser, cleanEmail);
+    const user = profileToUser(fbUser.uid, profile, fbUser, cleanEmail);
+    if (user.role !== UserRole.ADMIN && user.accountStatus !== 'APPROVED') {
+      await fbSignOut(auth);
+      throw new Error(user.accountStatus === 'REJECTED' ? REJECTED_MESSAGE : PENDING_MESSAGE);
+    }
+    return user;
   },
 
   async signOut(): Promise<void> {
@@ -184,14 +226,28 @@ export const firebaseService = {
 
   async getCurrentUser(): Promise<User | null> {
     if (!auth || !db) return null;
+    if (signingUp) return null;
 
     // Wait for Firebase to restore any persisted session.
     await auth.authStateReady();
     const fbUser = auth.currentUser;
     if (!fbUser) return null;
 
-    const profile = await fetchProfile(fbUser.uid).catch(() => null);
-    return profileToUser(fbUser.uid, profile, fbUser);
+    let profile: any;
+    try {
+      profile = await fetchProfile(fbUser.uid);
+    } catch {
+      // Network hiccup: keep the session; Firestore rules still protect the data.
+      return profileToUser(fbUser.uid, null, fbUser);
+    }
+    if (!profile) return null;
+
+    const user = profileToUser(fbUser.uid, profile, fbUser);
+    if (user.role !== UserRole.ADMIN && user.accountStatus !== 'APPROVED') {
+      await fbSignOut(auth).catch(() => {});
+      return null;
+    }
+    return user;
   },
 
   async getTransactions(userId?: string, isAdmin = false, _userEmail?: string): Promise<Transaction[]> {
@@ -328,15 +384,77 @@ export const firebaseService = {
     }
   },
 
-  async updateUser(userId: string, data: { role?: string; isActive?: boolean; balance?: number }): Promise<void> {
+  async updateUser(
+    userId: string,
+    data: { role?: string; isActive?: boolean; balance?: number; accountStatus?: AccountStatus }
+  ): Promise<void> {
     if (!db) return;
 
     const payload: Record<string, any> = {};
     if (data.role) payload.role = data.role;
     if (data.isActive !== undefined) payload.isActive = data.isActive;
     if (data.balance !== undefined) payload.balance = data.balance;
+    if (data.accountStatus) payload.accountStatus = data.accountStatus;
     if (Object.keys(payload).length === 0) return;
 
     await updateDoc(doc(db, PROFILES, userId), payload);
+  },
+  // ---------- Customer support chat ----------
+
+  // userId = a user's id for their own thread, or null for the admin inbox (all threads).
+  subscribeSupportMessages(
+    userId: string | null,
+    onChange: (messages: SupportMessage[]) => void,
+    onError?: (err: Error) => void
+  ): () => void {
+    if (!db) return () => {};
+    const col = collection(db, SUPPORT);
+    const q = userId ? query(col, where('userId', '==', userId)) : query(col);
+    return onSnapshot(
+      q,
+      (snap) => {
+        // Sorted client-side so no composite index is required.
+        const list = snap.docs
+          .map((d) => docToSupport(d.id, d.data()))
+          .sort((a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime());
+        onChange(list);
+      },
+      (err) => {
+        console.warn('Support chat listener error:', err);
+        onError?.(err);
+      }
+    );
+  },
+
+  async sendSupportMessage(msg: {
+    userId: string;
+    userEmail: string;
+    userName: string;
+    sender: 'USER' | 'ADMIN';
+    text: string;
+  }): Promise<void> {
+    if (!db) throw new Error('Firebase is not configured.');
+    const text = msg.text.trim().slice(0, 1000);
+    if (!text) return;
+    await addDoc(collection(db, SUPPORT), {
+      userId: msg.userId,
+      userEmail: msg.userEmail.toLowerCase().trim(),
+      userName: msg.userName,
+      sender: msg.sender,
+      text,
+      createdAt: new Date().toISOString(),
+      readByAdmin: msg.sender === 'ADMIN',
+      readByUser: msg.sender === 'USER',
+    });
+  },
+
+  async markSupportRead(ids: string[], field: 'readByAdmin' | 'readByUser'): Promise<void> {
+    if (!db || ids.length === 0) return;
+    const firestore = db;
+    for (let i = 0; i < ids.length; i += 400) {
+      const batch = writeBatch(firestore);
+      ids.slice(i, i + 400).forEach((id) => batch.update(doc(firestore, SUPPORT, id), { [field]: true }));
+      await batch.commit();
+    }
   },
 };
