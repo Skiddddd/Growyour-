@@ -23,8 +23,7 @@ const PERFORMANCE_DATA_30D = [
 const MARKET_TICKERS = [
   { symbol: 'BTC', name: 'Bitcoin', price: '$87,420.50', change: '+3.42%', positive: true },
   { symbol: 'ETH', name: 'Ethereum', price: '$2,780.15', change: '+2.18%', positive: true },
-  { symbol: 'SOL', name: 'Solana', price: '$184.60', change: '+6.85%', positive: true },
-  { symbol: 'USDT', name: 'Tether USD', price: '$1.00', change: '+0.01%', positive: true }
+  { symbol: 'SOL', name: 'Solana', price: '$184.60', change: '+6.85%', positive: true }
 ];
 
 export const DashboardView: React.FC<DashboardViewProps> = ({

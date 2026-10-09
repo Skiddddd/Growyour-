@@ -36,7 +36,8 @@ export const INITIAL_PLANS: InvestmentPlan[] = [
 export const INITIAL_CONFIG: SystemConfig = {
   btcAddress: 'bc1qynty8rdg8448dektk7yesd9ph0w08tfy7dav3y',
   ethAddress: '0xf4059C384bAa6d60E426F91681F1e62A830E4Ec9',
-  usdtAddress: '0xf4059C384bAa6d60E426F91681F1e62A830E4Ec9'
+  // Set the real Solana deposit address in Admin > System Config.
+  solAddress: ''
 };
 
 export const STORAGE_KEY = 'nexus_crypto_db_v1';

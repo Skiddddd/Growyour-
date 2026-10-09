@@ -100,7 +100,7 @@ const INITIAL_DATA = {
   systemConfig: {
     btcAddress: 'bc1qynty8rdg8448dektk7yesd9ph0w08tfy7dav3y',
     ethAddress: '0xf4059C384bAa6d60E426F91681F1e62A830E4Ec9',
-    usdtAddress: '0xf4059C384bAa6d60E426F91681F1e62A830E4Ec9'
+    solAddress: ''
   }
 };
 
@@ -552,12 +552,12 @@ app.patch('/api/admin/transactions/:id', authRequired, adminRequired, async (req
 });
 
 app.patch('/api/admin/system-config', authRequired, adminRequired, async (req, res) => {
-  const { btcAddress, ethAddress, usdtAddress } = req.body || {};
+  const { btcAddress, ethAddress, solAddress } = req.body || {};
   const db = await readDb();
   db.systemConfig = {
     btcAddress: btcAddress || db.systemConfig.btcAddress,
     ethAddress: ethAddress || db.systemConfig.ethAddress,
-    usdtAddress: usdtAddress || db.systemConfig.usdtAddress
+    solAddress: solAddress || db.systemConfig.solAddress
   };
   await writeDb(db);
   res.json(db.systemConfig);

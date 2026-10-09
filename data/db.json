@@ -91,6 +91,6 @@
   "systemConfig": {
     "btcAddress": "bc1qynty8rdg8448dektk7yesd9ph0w08tfy7dav3y",
     "ethAddress": "0xf4059C384bAa6d60E426F91681F1e62A830E4Ec9",
-    "usdtAddress": "0xf4059C384bAa6d60E426F91681F1e62A830E4Ec9"
+    "solAddress": ""
   }
 }
