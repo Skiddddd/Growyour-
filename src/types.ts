@@ -77,6 +77,7 @@ export interface SupportMessage {
   userName: string;
   sender: 'USER' | 'ADMIN';
   text: string;
+  imageData?: string;
   createdAt: string;
   readByAdmin: boolean;
   readByUser: boolean;

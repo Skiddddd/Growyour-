@@ -62,10 +62,20 @@ service cloud.firestore {
     match /support_messages/{msgId} {
       allow read: if signedIn() && (resource.data.userId == request.auth.uid || isAdmin());
 
+      // A message needs text, a photo (compressed data URL), or both.
       allow create: if isApproved()
         && request.resource.data.text is string
-        && request.resource.data.text.size() > 0
         && request.resource.data.text.size() <= 1000
+        && (
+          request.resource.data.text.size() > 0
+          || ('imageData' in request.resource.data)
+        )
+        && (
+          !('imageData' in request.resource.data)
+          || (request.resource.data.imageData is string
+              && request.resource.data.imageData.size() <= 700000
+              && request.resource.data.imageData.matches('data:image/.*'))
+        )
         && (
           (request.resource.data.userId == request.auth.uid
             && request.resource.data.sender == 'USER')

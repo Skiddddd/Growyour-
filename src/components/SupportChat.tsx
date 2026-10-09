@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { SupportMessage } from '../types';
+import { compressImage } from '../lib/image';
+import ChatImage from './ChatImage';
 
 interface SupportChatProps {
   messages: SupportMessage[];
   available: boolean;
-  onSend: (text: string) => Promise<void>;
+  onSend: (text: string, imageData?: string) => Promise<void>;
   onMarkRead: (ids: string[]) => void;
 }
 
@@ -15,6 +17,9 @@ export const SupportChat: React.FC<SupportChatProps> = ({ messages, available, o
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const [image, setImage] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(false);
+  const fileRef = useRef<HTMLInputElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   // Mark admin replies as read while this screen is open.
@@ -30,15 +35,31 @@ export const SupportChat: React.FC<SupportChatProps> = ({ messages, available, o
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [messages.length]);
 
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setError('');
+    setProcessing(true);
+    try {
+      setImage(await compressImage(file));
+    } catch (err: any) {
+      setError(err?.message || 'Could not use that image.');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const value = text.trim();
-    if (!value || sending) return;
+    if ((!value && !image) || sending) return;
     setSending(true);
     setError('');
     try {
-      await onSend(value);
+      await onSend(value, image || undefined);
       setText('');
+      setImage(null);
     } catch (err: any) {
       setError(err?.message || 'Message could not be sent. Please try again.');
     } finally {
@@ -85,7 +106,8 @@ export const SupportChat: React.FC<SupportChatProps> = ({ messages, available, o
                   }`}
                 >
                   {!mine && <div className="text-[10px] font-bold uppercase tracking-wider text-emerald-400 mb-0.5">Support Team</div>}
-                  <p className="whitespace-pre-wrap break-words">{m.text}</p>
+                  {m.imageData && <ChatImage src={m.imageData} />}
+                  {m.text && <p className="whitespace-pre-wrap break-words">{m.text}</p>}
                   <div className="text-[10px] text-slate-500 mt-1 text-right">{formatTime(m.createdAt)}</div>
                 </div>
               </div>
@@ -98,7 +120,32 @@ export const SupportChat: React.FC<SupportChatProps> = ({ messages, available, o
           <div className="mx-4 mb-2 p-2 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs">{error}</div>
         )}
 
+        {image && (
+          <div className="mx-3 mb-2 p-2 rounded-xl bg-slate-950 border border-slate-800 flex items-center gap-3">
+            <img src={image} alt="Selected" className="w-14 h-14 object-cover rounded-lg" />
+            <span className="text-xs text-slate-400 flex-1">Photo ready to send</span>
+            <button
+              type="button"
+              onClick={() => setImage(null)}
+              aria-label="Remove photo"
+              className="w-7 h-7 rounded-full bg-slate-800 text-slate-300 hover:text-white"
+            >
+              <i className="fas fa-times text-xs"></i>
+            </button>
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="p-3 border-t border-slate-800 flex gap-2">
+          <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} className="hidden" />
+          <button
+            type="button"
+            onClick={() => fileRef.current?.click()}
+            disabled={!available || processing || sending}
+            aria-label="Attach a photo"
+            className="px-3 py-2.5 rounded-xl text-slate-300 bg-slate-800 border border-slate-700 hover:text-cyan-300 transition disabled:opacity-40"
+          >
+            {processing ? <span className="inline-block w-4 h-4 border-2 border-slate-500/40 border-t-slate-300 rounded-full animate-spin"></span> : <i className="fas fa-image"></i>}
+          </button>
           <input
             type="text"
             value={text}
@@ -110,7 +157,7 @@ export const SupportChat: React.FC<SupportChatProps> = ({ messages, available, o
           />
           <button
             type="submit"
-            disabled={!available || sending || !text.trim()}
+            disabled={!available || sending || processing || (!text.trim() && !image)}
             className="px-4 py-2.5 rounded-xl font-bold text-xs bg-cyan-400 text-slate-950 hover:brightness-110 transition disabled:opacity-40"
           >
             {sending ? <span className="inline-block w-4 h-4 border-2 border-slate-950/30 border-t-slate-950 rounded-full animate-spin"></span> : <i className="fas fa-paper-plane"></i>}

@@ -1,10 +1,12 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { SupportMessage, User } from '../types';
+import { compressImage } from '../lib/image';
+import ChatImage from './ChatImage';
 
 interface AdminSupportProps {
   messages: SupportMessage[];
   users: User[];
-  onSend: (target: { userId: string; userEmail: string; userName: string }, text: string) => Promise<void>;
+  onSend: (target: { userId: string; userEmail: string; userName: string }, text: string, imageData?: string) => Promise<void>;
   onMarkRead: (ids: string[]) => void;
 }
 
@@ -25,6 +27,9 @@ export const AdminSupport: React.FC<AdminSupportProps> = ({ messages, users, onS
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
+  const [image, setImage] = useState<string | null>(null);
+  const [processing, setProcessing] = useState(false);
+  const fileRef = useRef<HTMLInputElement | null>(null);
   const bottomRef = useRef<HTMLDivElement | null>(null);
 
   const threads = useMemo<Thread[]>(() => {
@@ -68,15 +73,31 @@ export const AdminSupport: React.FC<AdminSupportProps> = ({ messages, users, onS
     bottomRef.current?.scrollIntoView({ behavior: 'smooth', block: 'end' });
   }, [selected?.messages.length, selectedId]);
 
+  const handleFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = '';
+    if (!file) return;
+    setError('');
+    setProcessing(true);
+    try {
+      setImage(await compressImage(file));
+    } catch (err: any) {
+      setError(err?.message || 'Could not use that image.');
+    } finally {
+      setProcessing(false);
+    }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const value = text.trim();
-    if (!value || !selected || sending) return;
+    if ((!value && !image) || !selected || sending) return;
     setSending(true);
     setError('');
     try {
-      await onSend({ userId: selected.userId, userEmail: selected.userEmail, userName: selected.userName }, value);
+      await onSend({ userId: selected.userId, userEmail: selected.userEmail, userName: selected.userName }, value, image || undefined);
       setText('');
+      setImage(null);
     } catch (err: any) {
       setError(err?.message || 'Reply could not be sent. Please try again.');
     } finally {
@@ -120,7 +141,7 @@ export const AdminSupport: React.FC<AdminSupportProps> = ({ messages, users, onS
                 <div className="text-[11px] text-slate-500 truncate font-mono">{t.userEmail}</div>
                 <div className="text-xs text-slate-400 truncate mt-1">
                   {last.sender === 'ADMIN' ? 'You: ' : ''}
-                  {last.text}
+                  {last.text || 'Photo'}
                 </div>
               </button>
             );
@@ -162,7 +183,8 @@ export const AdminSupport: React.FC<AdminSupportProps> = ({ messages, users, onS
                             : 'bg-slate-800 border border-slate-700 text-slate-100 rounded-bl-md'
                         }`}
                       >
-                        <p className="whitespace-pre-wrap break-words">{m.text}</p>
+                        {m.imageData && <ChatImage src={m.imageData} />}
+                        {m.text && <p className="whitespace-pre-wrap break-words">{m.text}</p>}
                         <div className="text-[10px] text-slate-500 mt-1 text-right">{formatTime(m.createdAt)}</div>
                       </div>
                     </div>
@@ -175,7 +197,32 @@ export const AdminSupport: React.FC<AdminSupportProps> = ({ messages, users, onS
                 <div className="mx-4 mb-2 p-2 rounded-lg bg-rose-500/15 border border-rose-500/30 text-rose-300 text-xs">{error}</div>
               )}
 
+              {image && (
+                <div className="mx-3 mb-2 p-2 rounded-xl bg-slate-950 border border-slate-800 flex items-center gap-3">
+                  <img src={image} alt="Selected" className="w-14 h-14 object-cover rounded-lg" />
+                  <span className="text-xs text-slate-400 flex-1">Photo ready to send</span>
+                  <button
+                    type="button"
+                    onClick={() => setImage(null)}
+                    aria-label="Remove photo"
+                    className="w-7 h-7 rounded-full bg-slate-800 text-slate-300 hover:text-white"
+                  >
+                    <i className="fas fa-times text-xs"></i>
+                  </button>
+                </div>
+              )}
+
               <form onSubmit={handleSubmit} className="p-3 border-t border-slate-800 flex gap-2">
+                <input ref={fileRef} type="file" accept="image/*" onChange={handleFile} className="hidden" />
+                <button
+                  type="button"
+                  onClick={() => fileRef.current?.click()}
+                  disabled={processing || sending}
+                  aria-label="Attach a photo"
+                  className="px-3 py-2.5 rounded-xl text-slate-300 bg-slate-800 border border-slate-700 hover:text-emerald-300 transition disabled:opacity-40"
+                >
+                  {processing ? <span className="inline-block w-4 h-4 border-2 border-slate-500/40 border-t-slate-300 rounded-full animate-spin"></span> : <i className="fas fa-image"></i>}
+                </button>
                 <input
                   type="text"
                   value={text}
@@ -186,7 +233,7 @@ export const AdminSupport: React.FC<AdminSupportProps> = ({ messages, users, onS
                 />
                 <button
                   type="submit"
-                  disabled={sending || !text.trim()}
+                  disabled={sending || processing || (!text.trim() && !image)}
                   className="px-4 py-2.5 rounded-xl font-bold text-xs bg-emerald-400 text-slate-950 hover:brightness-110 transition disabled:opacity-40"
                 >
                   {sending ? <span className="inline-block w-4 h-4 border-2 border-slate-950/30 border-t-slate-950 rounded-full animate-spin"></span> : <i className="fas fa-paper-plane"></i>}

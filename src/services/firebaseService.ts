@@ -105,6 +105,7 @@ function docToSupport(id: string, m: any): SupportMessage {
     userName: m.userName || '',
     sender: m.sender === 'ADMIN' ? 'ADMIN' : 'USER',
     text: m.text || '',
+    imageData: typeof m.imageData === 'string' ? m.imageData : undefined,
     createdAt: toIso(m.createdAt),
     readByAdmin: Boolean(m.readByAdmin),
     readByUser: Boolean(m.readByUser),
@@ -432,16 +433,18 @@ export const firebaseService = {
     userName: string;
     sender: 'USER' | 'ADMIN';
     text: string;
+    imageData?: string;
   }): Promise<void> {
     if (!db) throw new Error('Firebase is not configured.');
     const text = msg.text.trim().slice(0, 1000);
-    if (!text) return;
+    if (!text && !msg.imageData) return;
     await addDoc(collection(db, SUPPORT), {
       userId: msg.userId,
       userEmail: msg.userEmail.toLowerCase().trim(),
       userName: msg.userName,
       sender: msg.sender,
       text,
+      ...(msg.imageData ? { imageData: msg.imageData } : {}),
       createdAt: new Date().toISOString(),
       readByAdmin: msg.sender === 'ADMIN',
       readByUser: msg.sender === 'USER',
