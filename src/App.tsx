@@ -677,22 +677,24 @@ export default function App() {
     await refreshState();
   };
 
-  const handleSendSupport = async (text: string) => {
+  const handleSendSupport = async (text: string, imageData?: string) => {
     if (!state.currentUser) return;
     await firebaseService.sendSupportMessage({
       userId: state.currentUser.id,
       userEmail: state.currentUser.email,
       userName: state.currentUser.fullName,
       sender: 'USER',
-      text
+      text,
+      imageData
     });
   };
 
   const handleAdminReply = async (
     target: { userId: string; userEmail: string; userName: string },
-    text: string
+    text: string,
+    imageData?: string
   ) => {
-    await firebaseService.sendSupportMessage({ ...target, sender: 'ADMIN', text });
+    await firebaseService.sendSupportMessage({ ...target, sender: 'ADMIN', text, imageData });
   };
 
   const handleMarkSupportRead = (field: 'readByAdmin' | 'readByUser') => (ids: string[]) => {
