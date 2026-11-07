@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { AreaChart, Area, ResponsiveContainer, Tooltip, XAxis, YAxis, CartesianGrid } from 'recharts';
+import LiveMarketChart from './LiveMarketChart';
+import { COINS, formatUsd, useLivePrices } from '../lib/livePrices';
 import { User, Transaction, TransactionStatus, TransactionType, UserRole } from '../types';
 
 interface DashboardViewProps {
@@ -10,22 +11,6 @@ interface DashboardViewProps {
   onOpenWithdraw: () => void;
 }
 
-const PERFORMANCE_DATA_30D = [
-  { day: 'Day 1', value: 1000, profit: 0 },
-  { day: 'Day 5', value: 1120, profit: 120 },
-  { day: 'Day 10', value: 1280, profit: 280 },
-  { day: 'Day 15', value: 1240, profit: 240 },
-  { day: 'Day 20', value: 1450, profit: 450 },
-  { day: 'Day 25', value: 1680, profit: 680 },
-  { day: 'Day 30', value: 1950, profit: 950 }
-];
-
-const MARKET_TICKERS = [
-  { symbol: 'BTC', name: 'Bitcoin', price: '$87,420.50', change: '+3.42%', positive: true },
-  { symbol: 'ETH', name: 'Ethereum', price: '$2,780.15', change: '+2.18%', positive: true },
-  { symbol: 'SOL', name: 'Solana', price: '$184.60', change: '+6.85%', positive: true }
-];
-
 export const DashboardView: React.FC<DashboardViewProps> = ({
   user,
   transactions,
@@ -33,7 +18,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
   onOpenDeposit,
   onOpenWithdraw
 }) => {
-  const [timeframe, setTimeframe] = useState<'7D' | '30D' | '90D'>('30D');
+  const { prices, status } = useLivePrices();
 
   const isAdmin = user.role === UserRole.ADMIN;
   const userTxs = isAdmin ? transactions : transactions.filter((t) => t.userId === user.id);
@@ -202,59 +187,8 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
       {/* Main Grid: Chart + Live Market Watch */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Growth Area Chart (2 cols) */}
-        <div className="lg:col-span-2 p-5 sm:p-6 rounded-2xl bg-slate-900/60 border border-slate-800">
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
-            <div>
-              <h2 className="text-lg font-bold text-white">Portfolio Trajectory & Growth</h2>
-              <p className="text-xs text-slate-400 mt-0.5">Estimated ROI projection based on automated tier execution</p>
-            </div>
-            <div className="flex items-center gap-1 bg-slate-950 p-1 rounded-lg border border-slate-800 text-xs">
-              {(['7D', '30D', '90D'] as const).map((t) => (
-                <button
-                  key={t}
-                  onClick={() => setTimeframe(t)}
-                  className={`px-3 py-1 rounded font-semibold transition ${
-                    timeframe === t ? 'bg-cyan-500 text-slate-950 shadow' : 'text-slate-400 hover:text-white'
-                  }`}
-                >
-                  {t}
-                </button>
-              ))}
-            </div>
-          </div>
-
-          <div className="h-64 sm:h-72 w-full">
-            <ResponsiveContainer width="100%" height="100%">
-              <AreaChart data={PERFORMANCE_DATA_30D} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                <defs>
-                  <linearGradient id="cyanArea" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#06b6d4" stopOpacity={0.4} />
-                    <stop offset="95%" stopColor="#06b6d4" stopOpacity={0.0} />
-                  </linearGradient>
-                  <linearGradient id="emeraldArea" x1="0" y1="0" x2="0" y2="1">
-                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.3} />
-                    <stop offset="95%" stopColor="#10b981" stopOpacity={0.0} />
-                  </linearGradient>
-                </defs>
-                <CartesianGrid strokeDasharray="3 3" stroke="#1e293b" />
-                <XAxis dataKey="day" stroke="#64748b" tick={{ fontSize: 11 }} />
-                <YAxis stroke="#64748b" tick={{ fontSize: 11 }} tickFormatter={(val) => `$${val}`} />
-                <Tooltip
-                  contentStyle={{
-                    backgroundColor: '#090d16',
-                    borderColor: '#1e293b',
-                    borderRadius: '12px',
-                    color: '#f8fafc',
-                    fontSize: '12px'
-                  }}
-                />
-                <Area type="monotone" dataKey="value" name="Total Capital" stroke="#06b6d4" strokeWidth={2.5} fill="url(#cyanArea)" />
-                <Area type="monotone" dataKey="profit" name="Net Yield" stroke="#10b981" strokeWidth={2} fill="url(#emeraldArea)" />
-              </AreaChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+        {/* Live market chart (2 cols) */}
+        <LiveMarketChart prices={prices} status={status} />
 
         {/* Live Market Watch (1 col) */}
         <div className="p-5 sm:p-6 rounded-2xl bg-slate-900/60 border border-slate-800 flex flex-col justify-between">
@@ -262,32 +196,39 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-lg font-bold text-white">Market Radar</h2>
               <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
-                LIVE 24H
+                {status === 'live' ? 'LIVE' : status === 'offline' ? 'OFFLINE' : 'UPDATING'}
               </span>
             </div>
             <p className="text-xs text-slate-400 mb-4">Benchmark cryptos backing platform liquidity pools</p>
 
             <div className="space-y-3">
-              {MARKET_TICKERS.map((ticker) => (
-                <div
-                  key={ticker.symbol}
-                  className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 flex items-center justify-between"
-                >
-                  <div className="flex items-center gap-2.5">
-                    <div className="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center font-bold text-xs text-slate-300">
-                      {ticker.symbol.slice(0, 3)}
+              {COINS.map((coin) => {
+                const p = prices[coin.symbol];
+                const change = p ? ((p.price - p.open24h) / p.open24h) * 100 : null;
+                const up = (change ?? 0) >= 0;
+                return (
+                  <div
+                    key={coin.symbol}
+                    className="p-3 rounded-xl bg-slate-950/70 border border-slate-800/80 flex items-center justify-between"
+                  >
+                    <div className="flex items-center gap-2.5">
+                      <div className="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center font-bold text-xs text-slate-300">
+                        {coin.symbol}
+                      </div>
+                      <div>
+                        <div className="text-xs font-bold text-white">{coin.name}</div>
+                        <div className="text-[10px] text-slate-400">{coin.symbol}</div>
+                      </div>
                     </div>
-                    <div>
-                      <div className="text-xs font-bold text-white">{ticker.name}</div>
-                      <div className="text-[10px] text-slate-400">{ticker.symbol}</div>
+                    <div className="text-right">
+                      <div className="text-xs font-mono font-bold text-slate-100">{p ? formatUsd(p.price) : '—'}</div>
+                      <div className={`text-[10px] font-semibold ${up ? 'text-emerald-400' : 'text-rose-400'}`}>
+                        {change === null ? '' : `${up ? '+' : ''}${change.toFixed(2)}%`}
+                      </div>
                     </div>
                   </div>
-                  <div className="text-right">
-                    <div className="text-xs font-mono font-bold text-slate-100">{ticker.price}</div>
-                    <div className="text-[10px] font-semibold text-emerald-400">{ticker.change}</div>
-                  </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           </div>
 
