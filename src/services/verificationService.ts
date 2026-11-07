@@ -24,6 +24,27 @@ async function post(path: string, body: Record<string, string>): Promise<void> {
   }
 }
 
+// Admin-only: emails the user that their account was approved.
+export async function notifyApproved(userId: string, idToken: string): Promise<void> {
+  let res: Response;
+  try {
+    res = await fetch('/api/notify-approved', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${idToken}` },
+      body: JSON.stringify({ userId })
+    });
+  } catch {
+    throw new Error('Network error.');
+  }
+  let data: any = null;
+  try {
+    data = await res.json();
+  } catch {
+    /* ignore */
+  }
+  if (!res.ok || !data?.ok) throw new Error(data?.error || 'Email service is unavailable.');
+}
+
 export const verificationService = {
   sendCode: (email: string) => post('/api/send-code', { email: email.toLowerCase().trim() }),
   verifyCode: (email: string, code: string) =>

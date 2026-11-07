@@ -47,3 +47,8 @@ Vercel -> Settings -> Environment Variables, then Redeploy:
 - **Brevo:** no domain needed. Verify a single sender address under Senders, and use it as `EMAIL_FROM`.
 - Never put the service-account JSON in GitHub or in a `VITE_` variable.
 - Re-publish `firestore.rules` after this update.
+
+## Approval email
+When an admin taps **Approve**, the user gets a "your account is approved" email (sent once).
+It uses the same Brevo setup. Optional Vercel variable `SITE_URL` (default `https://equityvestpro.com`)
+sets the sign-in link in the email. Accounts approved by hand in the Firestore console are not emailed.

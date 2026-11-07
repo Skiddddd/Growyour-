@@ -219,6 +219,12 @@ export const firebaseService = {
     return user;
   },
 
+  // Used to prove to the server that the caller is a signed-in admin.
+  async getIdToken(): Promise<string | null> {
+    if (!auth?.currentUser) return null;
+    return auth.currentUser.getIdToken();
+  },
+
   async signOut(): Promise<void> {
     if (!auth) return;
     await fbSignOut(auth);

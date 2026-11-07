@@ -21,7 +21,7 @@ import AdminView from './components/AdminView';
 import SupportChat from './components/SupportChat';
 import LiveBtcPrice from './components/LiveBtcPrice';
 import VerifyEmailCard from './components/VerifyEmailCard';
-import { verificationService } from './services/verificationService';
+import { verificationService, notifyApproved } from './services/verificationService';
 import AdminSupport from './components/AdminSupport';
 import LandingFaq from './components/LandingFaq';
 import GrowyourLogo from './components/GrowyourLogo';
@@ -707,6 +707,22 @@ export default function App() {
     } catch (err) {
       console.error('Account status update error:', err);
       alert(`Could not update this account: ${err instanceof Error ? err.message : String(err)}`);
+      await refreshState();
+      return;
+    }
+
+    // Approved accounts get a welcome email. The approval stands even if the email fails.
+    if (status === 'APPROVED') {
+      try {
+        const token = await firebaseService.getIdToken();
+        if (!token) throw new Error('Not signed in.');
+        await notifyApproved(userId, token);
+      } catch (err) {
+        console.warn('Approval email failed:', err);
+        alert(
+          `Account approved, but the welcome email could not be sent: ${err instanceof Error ? err.message : String(err)}`
+        );
+      }
     }
     await refreshState();
   };
