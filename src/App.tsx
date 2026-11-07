@@ -1189,7 +1189,7 @@ export default function App() {
 
         {/* Footer */}
         <footer className="relative z-10 py-6 border-t border-slate-900 text-center text-xs text-slate-500">
-          Growyour$ &bull; Online Stock & Digital Asset Platform &bull; ISO-Compliant Node
+          Growyour$/Equityvestpro &bull; Online Stock & Digital Asset Platform &bull; ISO-Compliant Node
         </footer>
       </div>
     );
