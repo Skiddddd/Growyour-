@@ -33,6 +33,9 @@ const SUPPORT = 'support_messages';
 // react to the half-created account.
 let signingUp = false;
 
+// Thrown by signIn when a pending account has not yet confirmed its email code.
+export const VERIFY_REQUIRED = 'EMAIL_NOT_VERIFIED';
+
 export const PENDING_MESSAGE =
   'Your account is awaiting admin approval. You will be able to sign in once it has been approved.';
 export const REJECTED_MESSAGE =
@@ -79,6 +82,8 @@ function profileToUser(uid: string, p: any, fbUser?: FirebaseUser | null, fallba
     role: p?.role === 'ADMIN' ? UserRole.ADMIN : UserRole.USER,
     isActive: p?.isActive ?? true,
     accountStatus: (p?.accountStatus as AccountStatus) || 'APPROVED',
+    // Older accounts have no flag: treat them as verified unless they are still pending.
+    emailVerified: typeof p?.emailVerified === 'boolean' ? p.emailVerified : (p?.accountStatus || 'APPROVED') !== 'PENDING',
     createdAt: toIso(p?.createdAt || fbUser?.metadata?.creationTime),
   };
 }
@@ -147,6 +152,7 @@ export const firebaseService = {
         balance: 0,
         isActive: true,
         accountStatus: 'PENDING',
+        emailVerified: false,
         createdAt,
       });
 
@@ -158,6 +164,7 @@ export const firebaseService = {
         role: UserRole.USER,
         isActive: true,
         accountStatus: 'PENDING',
+        emailVerified: false,
         createdAt,
       };
     } finally {
@@ -192,6 +199,7 @@ export const firebaseService = {
         balance: 0,
         isActive: true,
         accountStatus: 'PENDING',
+        emailVerified: false,
         createdAt: new Date().toISOString(),
       };
       try {
@@ -205,6 +213,7 @@ export const firebaseService = {
     const user = profileToUser(fbUser.uid, profile, fbUser, cleanEmail);
     if (user.role !== UserRole.ADMIN && user.accountStatus !== 'APPROVED') {
       await fbSignOut(auth);
+      if (user.accountStatus === 'PENDING' && user.emailVerified === false) throw new Error(VERIFY_REQUIRED);
       throw new Error(user.accountStatus === 'REJECTED' ? REJECTED_MESSAGE : PENDING_MESSAGE);
     }
     return user;

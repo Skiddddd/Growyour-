@@ -26,3 +26,24 @@
 - After updating, re-publish `firestore.rules` (Firestore -> Rules -> paste -> Publish).
 - To create the first admin: sign up, then in Firestore set the profile's `role` to `ADMIN`
   (admins are always allowed to sign in, even if the status still says PENDING).
+
+## Email verification code (sign-up)
+Flow: sign up -> 6-digit code emailed -> user enters it -> account is "email verified" but still
+PENDING -> admin approves in User Directory -> user can sign in.
+Unverified accounts show "Awaiting email code" instead of an Approve button.
+
+Server functions live in `api/` (Vercel runs them automatically). Add these in
+Vercel -> Settings -> Environment Variables, then Redeploy:
+
+| Name | Value |
+|---|---|
+| `FIREBASE_SERVICE_ACCOUNT` | the whole JSON file from Firebase > Project settings > Service accounts |
+| `RESEND_API_KEY` **or** `BREVO_API_KEY` | API key from your email provider (use one) |
+| `EMAIL_FROM` | sender address, e.g. `no-reply@yourdomain.com` |
+| `EMAIL_FROM_NAME` | `Growyour` |
+
+- **Resend:** you must verify a domain you own, then send from an address on it.
+  (The test sender `onboarding@resend.dev` only delivers to your own email.)
+- **Brevo:** no domain needed. Verify a single sender address under Senders, and use it as `EMAIL_FROM`.
+- Never put the service-account JSON in GitHub or in a `VITE_` variable.
+- Re-publish `firestore.rules` after this update.

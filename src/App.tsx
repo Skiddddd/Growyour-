@@ -20,6 +20,8 @@ import InvestView from './components/InvestView';
 import AdminView from './components/AdminView';
 import SupportChat from './components/SupportChat';
 import LiveBtcPrice from './components/LiveBtcPrice';
+import VerifyEmailCard from './components/VerifyEmailCard';
+import { verificationService } from './services/verificationService';
 import AdminSupport from './components/AdminSupport';
 import LandingFaq from './components/LandingFaq';
 import GrowyourLogo from './components/GrowyourLogo';
@@ -43,6 +45,8 @@ export default function App() {
   const [loading, setLoading] = useState(false);
   const [authError, setAuthError] = useState('');
   const [authNotice, setAuthNotice] = useState('');
+  const [verifyEmail, setVerifyEmail] = useState<string | null>(null);
+  const [verifyInitialError, setVerifyInitialError] = useState('');
   const [supportMessages, setSupportMessages] = useState<SupportMessage[]>([]);
   const [supportError, setSupportError] = useState(false);
 
@@ -224,12 +228,17 @@ export default function App() {
             if (user) {
               localStorage.setItem(REMEMBERED_EMAIL_KEY, email);
               if (user.accountStatus === 'PENDING') {
-                // New accounts wait for admin approval before they can sign in.
-                setIsRegistering(false);
+                // Step 1: confirm the email with a 6-digit code. Step 2: wait for admin approval.
                 setPassword('');
-                setAuthNotice(
-                  'Account created! It is now pending review. You will be able to sign in once an admin approves it.'
-                );
+                let sendError = '';
+                try {
+                  await verificationService.sendCode(user.email);
+                } catch (sendErr: any) {
+                  sendError = `${sendErr?.message || 'We could not send the code.'} Tap "Resend code" to try again.`;
+                }
+                setVerifyInitialError(sendError);
+                setVerifyEmail(user.email);
+                setIsRegistering(false);
                 setLoading(false);
                 return;
               }
@@ -280,6 +289,20 @@ export default function App() {
             }
           } catch (supaErr: any) {
             console.warn('Firebase sign-in note:', supaErr);
+            if (supaErr.message === 'EMAIL_NOT_VERIFIED') {
+              // Pending account that never entered its code: send a fresh one and show the code screen.
+              let sendError = '';
+              try {
+                await verificationService.sendCode(email);
+              } catch (sendErr: any) {
+                sendError = sendErr?.message || '';
+              }
+              setPassword('');
+              setVerifyInitialError(sendError);
+              setVerifyEmail(email.toLowerCase().trim());
+              setLoading(false);
+              return;
+            }
             if (supaErr.message?.includes('Email not confirmed')) {
               setAuthError('Email not confirmed. Please check your inbox.');
               setLoading(false);
@@ -835,7 +858,26 @@ export default function App() {
                 ref={authCardRef}
                 className="rounded-3xl p-6 sm:p-8 bg-slate-950/70 border border-cyan-500/25 backdrop-blur-xl shadow-2xl shadow-cyan-950/50"
               >
-                {isResettingPassword ? (
+                {verifyEmail ? (
+                  <VerifyEmailCard
+                    email={verifyEmail}
+                    initialError={verifyInitialError}
+                    onVerified={() => {
+                      setVerifyEmail(null);
+                      setVerifyInitialError('');
+                      setIsRegistering(false);
+                      setAuthError('');
+                      setAuthNotice(
+                        'Email verified! Your account is now under review. You will be able to sign in once an admin approves it.'
+                      );
+                    }}
+                    onBack={() => {
+                      setVerifyEmail(null);
+                      setVerifyInitialError('');
+                      setAuthNotice('');
+                    }}
+                  />
+                ) : isResettingPassword ? (
                   <div>
                     <div className="mb-6 flex items-center justify-between gap-4 border-b border-slate-900 pb-5">
                       <div>

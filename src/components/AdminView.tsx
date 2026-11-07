@@ -322,9 +322,22 @@ export const AdminView: React.FC<AdminViewProps> = ({
           ? 'bg-amber-500/20 text-amber-300 border border-amber-500/40'
           : 'bg-rose-500/20 text-rose-300 border border-rose-500/40';
       return (
-        <span className={`ml-2 px-2 py-0.5 rounded text-[10px] font-bold ${cls}`}>
-          {u.accountStatus === 'PENDING' ? 'PENDING APPROVAL' : 'REJECTED'}
-        </span>
+        <>
+          <span className={`ml-2 px-2 py-0.5 rounded text-[10px] font-bold ${cls}`}>
+            {u.accountStatus === 'PENDING' ? 'PENDING APPROVAL' : 'REJECTED'}
+          </span>
+          {u.accountStatus === 'PENDING' && (
+            <span
+              className={`ml-1.5 px-2 py-0.5 rounded text-[10px] font-bold border ${
+                u.emailVerified
+                  ? 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30'
+                  : 'bg-slate-700/40 text-slate-300 border-slate-600'
+              }`}
+            >
+              {u.emailVerified ? 'EMAIL VERIFIED' : 'EMAIL UNVERIFIED'}
+            </span>
+          )}
+        </>
       );
     };
 
@@ -334,12 +347,18 @@ export const AdminView: React.FC<AdminViewProps> = ({
       if (status === 'APPROVED') return null;
       return (
         <div className={block ? 'grid grid-cols-2 gap-2' : 'inline-flex gap-2 mr-2'}>
-          <button
-            onClick={() => onSetAccountStatus(u.id, 'APPROVED')}
-            className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 transition"
-          >
-            <i className="fas fa-check mr-1.5 text-[10px]"></i>Approve
-          </button>
+          {status === 'PENDING' && !u.emailVerified ? (
+            <span className="px-3 py-1.5 rounded-lg text-[11px] font-semibold bg-slate-800 text-slate-400 border border-slate-700 text-center">
+              Awaiting email code
+            </span>
+          ) : (
+            <button
+              onClick={() => onSetAccountStatus(u.id, 'APPROVED')}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 transition"
+            >
+              <i className="fas fa-check mr-1.5 text-[10px]"></i>Approve
+            </button>
+          )}
           {status === 'PENDING' && (
             <button
               onClick={() => onSetAccountStatus(u.id, 'REJECTED')}

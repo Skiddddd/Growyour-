@@ -37,7 +37,8 @@ service cloud.firestore {
         && request.auth.uid == uid
         && request.resource.data.role == 'USER'
         && request.resource.data.balance == 0
-        && request.resource.data.accountStatus == 'PENDING';
+        && request.resource.data.accountStatus == 'PENDING'
+        && request.resource.data.get('emailVerified', false) == false;
 
       // Only admins can change role/balance/status.
       allow update: if isAdmin();
@@ -89,6 +90,11 @@ service cloud.firestore {
             && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['readByUser']));
 
       allow delete: if false;
+    }
+
+    // Verification codes are managed only by the server functions (Admin SDK bypasses rules).
+    match /email_codes/{docId} {
+      allow read, write: if false;
     }
 
     // Wallet deposit addresses: public read, admin write

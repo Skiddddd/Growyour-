@@ -25,6 +25,7 @@ export interface User {
   role: UserRole;
   isActive?: boolean;
   accountStatus?: AccountStatus;
+  emailVerified?: boolean;
   externalWallets?: {
     btc?: string;
     eth?: string;
