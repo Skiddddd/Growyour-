@@ -19,6 +19,7 @@ import DashboardView from './components/DashboardView';
 import InvestView from './components/InvestView';
 import AdminView from './components/AdminView';
 import SupportChat from './components/SupportChat';
+import LiveBtcPrice from './components/LiveBtcPrice';
 import AdminSupport from './components/AdminSupport';
 import LandingFaq from './components/LandingFaq';
 import GrowyourLogo from './components/GrowyourLogo';
@@ -815,7 +816,7 @@ export default function App() {
               <div className="grid grid-cols-3 gap-3 pt-6 border-t border-slate-800/80 max-w-md">
                 <div className="p-2.5 rounded-xl bg-slate-900/50 border border-slate-800">
                   <span className="text-[10px] text-slate-400 block">BTC Price</span>
-                  <span className="text-xs font-mono font-bold text-white">$87,420</span>
+                  <LiveBtcPrice />
                 </div>
                 <div className="p-2.5 rounded-xl bg-slate-900/50 border border-slate-800">
                   <span className="text-[10px] text-slate-400 block">Daily Yield</span>
