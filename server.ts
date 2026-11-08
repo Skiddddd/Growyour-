@@ -56,7 +56,7 @@ const INITIAL_DATA = {
     {
       id: 'admin-1',
       email: 'admin@growyour.io',
-      fullName: 'Growyour$ Administrator',
+      fullName: 'EquityVest Pro Administrator',
       passwordHash: hashPassword('Admin@123'),
       balance: 0,
       role: 'ADMIN',
@@ -127,7 +127,7 @@ function reconcileAdminVault(db: any) {
       u.balance = accurateBalance;
       if (u.email === 'admin@nexus.io') {
         u.email = 'admin@growyour.io';
-        u.fullName = 'Growyour$ Administrator';
+        u.fullName = 'EquityVest Pro Administrator';
       }
     }
   });
@@ -197,7 +197,7 @@ function adminRequired(req: any, res: any, next: any) {
 // -------------------------------------------------------------
 
 app.get('/api/health', (_req, res) => {
-  res.json({ ok: true, platform: 'Growyour$', timestamp: new Date().toISOString() });
+  res.json({ ok: true, platform: 'EquityVest Pro', timestamp: new Date().toISOString() });
 });
 
 app.get('/api/plans', async (_req, res) => {
@@ -328,7 +328,7 @@ app.post('/api/auth/login', async (req, res) => {
     user = {
       id: 'admin-1',
       email: normalizedEmail,
-      fullName: 'Growyour$ Administrator',
+      fullName: 'EquityVest Pro Administrator',
       passwordHash: hashPassword('Admin@123'),
       balance: calculateVaultBalance(db),
       role: 'ADMIN',

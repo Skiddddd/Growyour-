@@ -831,7 +831,7 @@ export default function App() {
               </div>
 
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black tracking-tight leading-tight text-white">
-                Invest Smarter with <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-teal-300 to-emerald-400">Growyour$</span>
+                Invest Smarter with <span className="text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-teal-300 to-emerald-400">EquityVest Pro</span>
               </h1>
 
               <p className="text-slate-300 text-base sm:text-lg max-w-xl leading-relaxed">
@@ -1189,7 +1189,7 @@ export default function App() {
 
         {/* Footer */}
         <footer className="relative z-10 py-6 border-t border-slate-900 text-center text-xs text-slate-500">
-          Growyour$/Equityvestpro &bull; Online Stock & Digital Asset Platform &bull; ISO-Compliant Node
+          EquityVest Pro &bull; Online Stock & Digital Asset Platform &bull; ISO-Compliant Node
         </footer>
       </div>
     );

@@ -3,7 +3,7 @@
     {
       "id": "admin-1",
       "email": "admin@growyour.io",
-      "fullName": "Growyour$ Administrator",
+      "fullName": "EquityVest Pro Administrator",
       "passwordHash": "64b24d069ab9d430841462c7900e0a77:29796ee8ba4c9699154f30d6083f5871a27e9c727959d9c0274542077b40e7da0ecb14889e866c0b343f7a207283801390f77ef0b149f0e2da06ff7f9f6d1db5",
       "balance": 7000,
       "role": "ADMIN",

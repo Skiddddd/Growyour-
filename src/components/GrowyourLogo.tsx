@@ -90,8 +90,8 @@ export const GrowyourLogo: React.FC<GrowyourLogoProps> = ({
       {showText && (
         <div className="leading-tight">
           <div className={`font-black ${currentSize.text} tracking-tight text-white flex items-center`}>
-            <span>Growyour</span>
-            <span className="text-emerald-400 ml-0.5">$</span>
+            <span>EquityVest</span>
+            <span className="text-emerald-400 ml-1">Pro</span>
           </div>
           <div className={`${currentSize.subText} text-cyan-400 font-bold tracking-wider uppercase`}>
             Online Stock & Crypto

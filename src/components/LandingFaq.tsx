@@ -14,7 +14,7 @@ const FAQ_DATA: FaqItem[] = [
     category: 'Account Security',
     question: 'How are my funds and personal credentials protected?',
     answer:
-      'Growyour$ isolates institutional assets in segregated multi-signature cold storage vaults with multi-party computation (MPC) authorization. User credentials are cryptographically protected via secure salting and hashing protocols, protected by encrypted JWT session tokens and continuous anomaly monitoring. No custodial private keys are ever exposed to the web layer.',
+      'EquityVest Pro isolates institutional assets in segregated multi-signature cold storage vaults with multi-party computation (MPC) authorization. User credentials are cryptographically protected via secure salting and hashing protocols, protected by encrypted JWT session tokens and continuous anomaly monitoring. No custodial private keys are ever exposed to the web layer.',
     badgeColor: 'text-cyan-400 bg-cyan-500/10 border-cyan-500/20'
   },
   {
@@ -46,7 +46,7 @@ const FAQ_DATA: FaqItem[] = [
     category: 'Minimums & Fees',
     question: 'What is the minimum deposit requirement, and are there hidden fees?',
     answer:
-      'Growyour$ welcomes investors starting at $50 (equivalent in BTC, ETH, or SOL). We maintain a 0% fee structure on inbound deposits. Outbound withdrawals include standard native blockchain network gas costs with zero hidden administrative markups.',
+      'EquityVest Pro welcomes investors starting at $50 (equivalent in BTC, ETH, or SOL). We maintain a 0% fee structure on inbound deposits. Outbound withdrawals include standard native blockchain network gas costs with zero hidden administrative markups.',
     badgeColor: 'text-blue-400 bg-blue-500/10 border-blue-500/20'
   }
 ];

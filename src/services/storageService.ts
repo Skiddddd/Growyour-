@@ -24,7 +24,7 @@ const defaultState: AppState = {
     {
       id: 'admin-1',
       email: 'admin@growyour.io',
-      fullName: 'Growyour$ Administrator',
+      fullName: 'EquityVest Pro Administrator',
       balance: 0,
       role: UserRole.ADMIN,
       isActive: true,
@@ -58,7 +58,7 @@ function reconcileAdminState(state: AppState) {
       u.balance = accurateVault;
       if (u.email === 'admin@nexus.io') {
         u.email = 'admin@growyour.io';
-        u.fullName = 'Growyour$ Administrator';
+        u.fullName = 'EquityVest Pro Administrator';
       }
     }
   });
@@ -134,7 +134,7 @@ export const storageService = {
       user = {
         id: 'admin-1',
         email: normalizedEmail,
-        fullName: 'Growyour$ Administrator',
+        fullName: 'EquityVest Pro Administrator',
         balance: calculateVaultBalance(state.transactions),
         role: UserRole.ADMIN,
         isActive: true,

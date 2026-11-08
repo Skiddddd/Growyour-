@@ -40,7 +40,7 @@ Vercel -> Settings -> Environment Variables, then Redeploy:
 | `FIREBASE_SERVICE_ACCOUNT` | the whole JSON file from Firebase > Project settings > Service accounts |
 | `RESEND_API_KEY` **or** `BREVO_API_KEY` | API key from your email provider (use one) |
 | `EMAIL_FROM` | sender address, e.g. `no-reply@yourdomain.com` |
-| `EMAIL_FROM_NAME` | `Growyour` |
+| `EMAIL_FROM_NAME` | `EquityVest Pro` |
 
 - **Resend:** you must verify a domain you own, then send from an address on it.
   (The test sender `onboarding@resend.dev` only delivers to your own email.)
