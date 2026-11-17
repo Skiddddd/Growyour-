@@ -36,7 +36,8 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
   // Balance edit modal state
   const [editingUser, setEditingUser] = useState<User | null>(null);
-  const [newBalance, setNewBalance] = useState<number>(0);
+  // Kept as text so typing "12." or "12.5" works; converted to a number on save.
+  const [newBalance, setNewBalance] = useState<string>('0');
   const [userSearchQuery, setUserSearchQuery] = useState('');
 
   // Transactions view state
@@ -60,7 +61,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
 
   const handleApplyBalance = () => {
     if (editingUser) {
-      onSetUserBalance(editingUser.id, Math.max(0, Number(newBalance) || 0));
+      onSetUserBalance(editingUser.id, Math.max(0, Math.round((parseFloat(newBalance) || 0) * 100) / 100));
       setEditingUser(null);
     }
   };
@@ -438,7 +439,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                       <button
                         onClick={() => {
                           setEditingUser(u);
-                          setNewBalance(u.balance);
+                          setNewBalance(String(u.balance));
                         }}
                         className="px-3 py-1.5 rounded-lg text-xs font-bold bg-slate-800 hover:bg-slate-700 text-cyan-300 transition"
                       >
@@ -496,7 +497,7 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 <button
                   onClick={() => {
                     setEditingUser(u);
-                    setNewBalance(u.balance);
+                    setNewBalance(String(u.balance));
                   }}
                   className="w-full py-2.5 px-3 rounded-xl text-xs font-bold bg-slate-800 hover:bg-slate-700 text-cyan-300 border border-slate-700 transition text-center"
                 >
@@ -543,8 +544,9 @@ export const AdminView: React.FC<AdminViewProps> = ({
                   onFocus={(e) => e.target.select()}
                   onChange={(e) => {
                     const raw = e.target.value;
-                    if (raw === '' || /^\d*\.?\d*$/.test(raw)) {
-                      setNewBalance(raw === '' ? 0 : Number(raw));
+                    // Allow digits with one optional decimal point (max 2 decimals).
+                    if (raw === '' || /^\d*\.?\d{0,2}$/.test(raw)) {
+                      setNewBalance(raw);
                     }
                   }}
                   className="w-full bg-slate-950 border border-slate-700 rounded-xl px-4 py-2.5 text-white font-mono text-sm focus:border-cyan-400 outline-none"
