@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { verificationService } from '../services/verificationService';
+import { SUPPORT_EMAIL } from '../constants';
 
 interface VerifyEmailCardProps {
   email: string;
@@ -108,7 +109,15 @@ export const VerifyEmailCard: React.FC<VerifyEmailCardProps> = ({ email, initial
         </button>
       </form>
 
-      <div className="mt-5 flex items-center justify-between text-xs">
+      <p className="mt-5 text-[11px] text-slate-500 text-center">
+        No email yet? Check your spam folder, or contact{' '}
+        <a href={`mailto:${SUPPORT_EMAIL}`} className="text-cyan-400 hover:text-cyan-300">
+          {SUPPORT_EMAIL}
+        </a>
+        .
+      </p>
+
+      <div className="mt-4 flex items-center justify-between text-xs">
         <button type="button" onClick={onBack} className="text-slate-400 hover:text-white">
           <i className="fas fa-arrow-left mr-1.5"></i>Back to sign in
         </button>

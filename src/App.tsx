@@ -13,7 +13,7 @@ import {
 import { storageService } from './services/storageService';
 import { apiService } from './services/apiService';
 import { firebaseService } from './services/firebaseService';
-import { REMEMBERED_EMAIL_KEY } from './constants';
+import { REMEMBERED_EMAIL_KEY, SUPPORT_EMAIL } from './constants';
 import Layout from './components/Layout';
 import DashboardView from './components/DashboardView';
 import InvestView from './components/InvestView';
@@ -1190,6 +1190,12 @@ export default function App() {
         {/* Footer */}
         <footer className="relative z-10 py-6 border-t border-slate-900 text-center text-xs text-slate-500">
           EquityVest Pro &bull; Online Stock & Digital Asset Platform &bull; ISO-Compliant Node
+          <div className="mt-2">
+            Need help?{' '}
+            <a href={`mailto:${SUPPORT_EMAIL}`} className="text-cyan-400 hover:text-cyan-300 font-semibold">
+              {SUPPORT_EMAIL}
+            </a>
+          </div>
         </footer>
       </div>
     );

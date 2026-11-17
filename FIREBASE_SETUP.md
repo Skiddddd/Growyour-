@@ -52,3 +52,8 @@ Vercel -> Settings -> Environment Variables, then Redeploy:
 When an admin taps **Approve**, the user gets a "your account is approved" email (sent once).
 It uses the same Brevo setup. Optional Vercel variable `SITE_URL` (default `https://equityvestpro.com`)
 sets the sign-in link in the email. Accounts approved by hand in the Firestore console are not emailed.
+
+## Support email
+`support@equityvestpro.com` is shown in the site footer, on the code-entry screen and in emails,
+and replies to our emails go to it. Create this mailbox (or a forward) with your domain's email host.
+To use a different address, change `SUPPORT_EMAIL` in `src/constants.ts` and the optional `SUPPORT_EMAIL` Vercel variable.

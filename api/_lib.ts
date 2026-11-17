@@ -48,6 +48,7 @@ export const isEmail = (v: unknown): v is string =>
 
 // ---- Email sending: Brevo (domain or single sender) or Resend (verified domain) ----
 export const BRAND = process.env.EMAIL_FROM_NAME || 'EquityVest Pro';
+export const SUPPORT_EMAIL = process.env.SUPPORT_EMAIL || 'support@equityvestpro.com';
 export const SITE_URL = (process.env.SITE_URL || 'https://equityvestpro.com').replace(/\/+$/, '');
 
 const escapeHtml = (v: string) =>
@@ -64,6 +65,7 @@ async function sendEmail(msg: { to: string; subject: string; html: string; text:
       body: JSON.stringify({
         sender: { name: fromName, email: fromEmail },
         to: [{ email: msg.to }],
+        replyTo: { email: SUPPORT_EMAIL, name: `${fromName} Support` },
         subject: msg.subject,
         htmlContent: msg.html,
         textContent: msg.text
@@ -77,7 +79,7 @@ async function sendEmail(msg: { to: string; subject: string; html: string; text:
     const res = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: { Authorization: `Bearer ${process.env.RESEND_API_KEY}`, 'content-type': 'application/json' },
-      body: JSON.stringify({ from: `${fromName} <${fromEmail}>`, to: [msg.to], subject: msg.subject, html: msg.html, text: msg.text })
+      body: JSON.stringify({ from: `${fromName} <${fromEmail}>`, reply_to: SUPPORT_EMAIL, to: [msg.to], subject: msg.subject, html: msg.html, text: msg.text })
     });
     if (!res.ok) throw new Error(`Resend error ${res.status}: ${(await res.text()).slice(0, 200)}`);
     return;
@@ -97,7 +99,7 @@ export async function sendVerificationEmail(to: string, code: string): Promise<v
       <p style="margin:0 0 16px;color:#475569">Enter this code on the sign-up screen to confirm your email address:</p>
       <div style="font-size:32px;font-weight:800;letter-spacing:8px;background:#f1f5f9;border-radius:12px;padding:16px;text-align:center">${code}</div>
       <p style="margin:16px 0 0;color:#64748b;font-size:13px">This code expires in 10 minutes. After verification, your account still needs to be approved by our team before you can sign in.</p>
-      <p style="margin:12px 0 0;color:#94a3b8;font-size:12px">If you did not create an account, you can safely ignore this email.</p>
+      <p style="margin:12px 0 0;color:#94a3b8;font-size:12px">If you did not create an account, you can safely ignore this email. Need help? Contact <a href="mailto:${SUPPORT_EMAIL}" style="color:#0891b2">${SUPPORT_EMAIL}</a>.</p>
     </div>`
   });
 }
@@ -107,7 +109,7 @@ export async function sendApprovalEmail(to: string, fullName: string): Promise<v
   await sendEmail({
     to,
     subject: `Welcome to ${BRAND} - your account is approved`,
-    text: `Hi ${fullName || 'there'}, good news! Your ${BRAND} account has been reviewed and approved. You can sign in now: ${SITE_URL}\n\nIf you do not see future emails from us, please check your spam folder.`,
+    text: `Hi ${fullName || 'there'}, good news! Your ${BRAND} account has been reviewed and approved. You can sign in now: ${SITE_URL}\n\nIf you do not see future emails from us, please check your spam folder. Need help? Contact ${SUPPORT_EMAIL}.`,
     html: `
     <div style="font-family:Arial,Helvetica,sans-serif;max-width:460px;margin:0 auto;padding:24px;color:#0f172a">
       <h2 style="margin:0 0 8px">Welcome to ${escapeHtml(BRAND)}!</h2>
@@ -115,7 +117,7 @@ export async function sendApprovalEmail(to: string, fullName: string): Promise<v
       <p style="margin:0 0 16px;color:#334155">Good news - your account has been reviewed and <strong>approved</strong>. You can sign in now and get started.</p>
       <p style="margin:0 0 20px"><a href="${SITE_URL}" style="display:inline-block;background:#06b6d4;color:#04121a;text-decoration:none;font-weight:700;padding:12px 24px;border-radius:10px">Sign in to your account</a></p>
       <p style="margin:0 0 6px;color:#64748b;font-size:13px">Or open this link: <a href="${SITE_URL}" style="color:#0891b2">${SITE_URL}</a></p>
-      <p style="margin:12px 0 0;color:#94a3b8;font-size:12px">Tip: add this sender to your contacts so our emails do not land in spam.</p>
+      <p style="margin:12px 0 0;color:#94a3b8;font-size:12px">Tip: add this sender to your contacts so our emails do not land in spam. Need help? Contact <a href="mailto:${SUPPORT_EMAIL}" style="color:#0891b2">${SUPPORT_EMAIL}</a>.</p>
     </div>`
   });
 }

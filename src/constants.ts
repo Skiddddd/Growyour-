@@ -40,6 +40,9 @@ export const INITIAL_CONFIG: SystemConfig = {
   solAddress: ''
 };
 
+// Public support address shown on the site and used as the reply-to on emails.
+export const SUPPORT_EMAIL = 'support@equityvestpro.com';
+
 export const STORAGE_KEY = 'nexus_crypto_db_v1';
 export const REMEMBERED_EMAIL_KEY = 'nexus_remembered_email';
 export const TOKEN_KEY = 'nexus_auth_token';
