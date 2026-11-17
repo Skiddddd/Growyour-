@@ -24,6 +24,8 @@ const formatTime = (iso: string) =>
 
 export const AdminSupport: React.FC<AdminSupportProps> = ({ messages, users, onSend, onMarkRead }) => {
   const [selectedId, setSelectedId] = useState<string | null>(null);
+  const [picking, setPicking] = useState(false);
+  const [search, setSearch] = useState('');
   const [text, setText] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
@@ -55,7 +57,23 @@ export const AdminSupport: React.FC<AdminSupportProps> = ({ messages, users, onS
     return Array.from(map.values()).sort((a, b) => b.lastAt - a.lastAt);
   }, [messages, users]);
 
-  const selected = threads.find((t) => t.userId === selectedId) || null;
+  // Open thread, or an empty one when the admin starts a conversation with a user who has not written yet.
+  const selected: Thread | null = useMemo(() => {
+    const existing = threads.find((t) => t.userId === selectedId);
+    if (existing) return existing;
+    const u = users.find((x) => x.id === selectedId);
+    if (!u) return null;
+    return { userId: u.id, userEmail: u.email, userName: u.fullName || u.email, messages: [], unread: 0, lastAt: 0 };
+  }, [threads, users, selectedId]);
+
+  // Customers the admin can write to (approved, non-admin), filtered by the search box.
+  const contacts = useMemo(() => {
+    const q = search.trim().toLowerCase();
+    return users
+      .filter((u) => u.role !== 'ADMIN' && (u.accountStatus || 'APPROVED') === 'APPROVED')
+      .filter((u) => !q || (u.fullName || '').toLowerCase().includes(q) || u.email.toLowerCase().includes(q))
+      .sort((a, b) => (a.fullName || a.email).localeCompare(b.fullName || b.email));
+  }, [users, search]);
 
   // Mark the open conversation's incoming messages as read.
   const unreadKey = useMemo(
@@ -108,7 +126,19 @@ export const AdminSupport: React.FC<AdminSupportProps> = ({ messages, users, onS
   return (
     <div className="space-y-4">
       <div>
-        <h1 className="text-2xl sm:text-3xl font-black text-white">Support Inbox</h1>
+        <div className="flex items-center justify-between gap-3">
+          <h1 className="text-2xl sm:text-3xl font-black text-white">Support Inbox</h1>
+          <button
+            type="button"
+            onClick={() => {
+              setSearch('');
+              setPicking(true);
+            }}
+            className="px-4 py-2 rounded-xl text-xs font-bold bg-emerald-400 text-slate-950 hover:brightness-110 transition shrink-0"
+          >
+            <i className="fas fa-pen-to-square mr-1.5"></i>New message
+          </button>
+        </div>
         <p className="text-sm text-slate-400 mt-1">Read customer messages and reply. New messages appear automatically.</p>
       </div>
 
@@ -116,7 +146,7 @@ export const AdminSupport: React.FC<AdminSupportProps> = ({ messages, users, onS
         {/* Conversation list (hidden on mobile while a thread is open) */}
         <div className={`${selected ? 'hidden md:block' : 'block'} border-r border-slate-800 overflow-y-auto`}>
           {threads.length === 0 && (
-            <div className="p-6 text-center text-xs text-slate-500">No customer messages yet.</div>
+            <div className="p-6 text-center text-xs text-slate-500">No conversations yet. Tap New message to write to a user.</div>
           )}
           {threads.map((t) => {
             const last = t.messages[t.messages.length - 1];
@@ -172,6 +202,11 @@ export const AdminSupport: React.FC<AdminSupportProps> = ({ messages, users, onS
               </div>
 
               <div className="flex-1 overflow-y-auto p-4 space-y-3">
+                {selected.messages.length === 0 && (
+                  <div className="text-center text-xs text-slate-500 py-10">
+                    No messages yet. Write below to start the conversation with {selected.userName}.
+                  </div>
+                )}
                 {selected.messages.map((m) => {
                   const mine = m.sender === 'ADMIN';
                   return (
@@ -243,6 +278,54 @@ export const AdminSupport: React.FC<AdminSupportProps> = ({ messages, users, onS
           )}
         </div>
       </div>
+
+      {picking && (
+        <div
+          className="fixed inset-0 z-50 bg-black/70 flex items-end sm:items-center justify-center p-0 sm:p-4"
+          onClick={() => setPicking(false)}
+        >
+          <div
+            className="w-full sm:max-w-md max-h-[80vh] flex flex-col rounded-t-2xl sm:rounded-2xl bg-slate-900 border border-slate-700"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="p-4 border-b border-slate-800 flex items-center justify-between">
+              <h3 className="text-sm font-bold text-white">Message a user</h3>
+              <button type="button" onClick={() => setPicking(false)} aria-label="Close" className="text-slate-400 hover:text-white">
+                <i className="fas fa-times"></i>
+              </button>
+            </div>
+            <div className="p-3 border-b border-slate-800">
+              <input
+                autoFocus
+                type="text"
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Search by name or email..."
+                className="w-full bg-slate-950 border border-slate-700 focus:border-cyan-400 rounded-xl px-4 py-2.5 text-sm text-white placeholder:text-slate-500 outline-none"
+              />
+            </div>
+            <div className="overflow-y-auto">
+              {contacts.length === 0 && (
+                <div className="p-6 text-center text-xs text-slate-500">No matching approved users.</div>
+              )}
+              {contacts.map((u) => (
+                <button
+                  key={u.id}
+                  type="button"
+                  onClick={() => {
+                    setSelectedId(u.id);
+                    setPicking(false);
+                  }}
+                  className="w-full text-left px-4 py-3 border-b border-slate-800/70 hover:bg-slate-800/40 transition"
+                >
+                  <div className="text-sm font-semibold text-white truncate">{u.fullName || 'User'}</div>
+                  <div className="text-[11px] text-slate-500 font-mono truncate">{u.email}</div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };
