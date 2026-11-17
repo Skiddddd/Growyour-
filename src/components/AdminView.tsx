@@ -539,11 +539,12 @@ export const AdminView: React.FC<AdminViewProps> = ({
                 <input
                   type="text"
                   inputMode="decimal"
-                  pattern="[0-9]*\.?[0-9]*"
+                  autoComplete="off"
                   value={newBalance}
                   onFocus={(e) => e.target.select()}
                   onChange={(e) => {
-                    const raw = e.target.value;
+                    // Some phone keyboards type a comma for the decimal key: treat it as a dot.
+                    const raw = e.target.value.replace(',', '.');
                     // Allow digits with one optional decimal point (max 2 decimals).
                     if (raw === '' || /^\d*\.?\d{0,2}$/.test(raw)) {
                       setNewBalance(raw);
